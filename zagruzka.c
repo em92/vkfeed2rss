@@ -51,6 +51,10 @@ char *zagruzka_lenty(char *zapros)
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&feedchunk);
 	curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
 	res = curl_easy_perform(curl);
+	if (!res) {
+		fprintf(stderr, "%s: ошибка при загрузке данных\n", nazvanie);
+		exit(-1);
+	}
 	
 	curl_easy_cleanup(curl);
 	free(feedchunk.memory);

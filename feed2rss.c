@@ -84,13 +84,13 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 		else { // вывод записи
 			printf("\t\t<item>\n");
 			if (json_integer_value(is_pinned) == 0)
-				printf("\t\t<title>Запись %lli</title>\n", json_integer_value(id));
+				printf("\t\t\t<title>Запись %lli</title>\n", json_integer_value(id));
 			else if (json_integer_value(is_pinned) == 1)
-				printf("\t\t<title>Прикреплённая запись %lli</title>\n", json_integer_value(id));
-			printf("\t\t<description>");
+				printf("\t\t\t<title>Прикреплённая запись %lli</title>\n", json_integer_value(id));
+			printf("\t\t\t<description>");
 			if (printf_nobr(json_string_value(text)) == -1) return -1; // эта строка, та, что выше и та, что ниже - сам пост, функция printf_nobr заменяет некоторые символы (которые может не понять читалка RSS) на помятные XML аналоги
 			printf("</description>\n");
-			printf("\t\t<pubDate>%s</pubDate>\n", vremja(json_integer_value(date)));
+			printf("\t\t\t<pubDate>%s</pubDate>\n", vremja(json_integer_value(date)));
 			if (json_is_string(image) == 1) /* если к записи была приложена картинка */ printf("\t\t<enclosure url=\"%s\" type=\"image/jpg\" />\n", json_string_value(image));
 			printf("\t\t</item>\n");
 		}
