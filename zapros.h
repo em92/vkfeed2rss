@@ -5,7 +5,7 @@
 struct Parametry {
 	unsigned long long id;
 	bool tip; // тип страницы: true - паблик, false - пользовательская страница
-	unsigned kolichestvo;
+	int kolichestvo;
 	unsigned short filter;
 };
 

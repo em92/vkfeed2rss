@@ -5,7 +5,7 @@
 
 #include "info.h"
 
-int printf_nobr(const char *str) // вывод строки с заменой всех "<br>" на '\n'
+int printf_nobr(const char *str) // вывод строки с заменой всех "<br>" на XML аналог, нужен для вывода постов
 {
 	for (unsigned i = 0; i < strlen(str); i++) {
 		if (str[i] == '<' && str[i+1] == 'b' && str[i+2] == 'r' && str[i+3] == '>') {
@@ -28,7 +28,7 @@ char *vremja() // время, аналог команды date
   return asctime (timeinfo);
 }
 
-int osnova_rss(char *zagolovok, char *opisanie, unsigned long long id, short tip) { // создаёт основу для rss и нужных данн
+int osnova_rss(char *zagolovok, char *opisanie, unsigned long long id, short tip) { // создаёт основу для RSS ленты
 	printf("<?xml version=\"%s\"?>\n", XMLVERSION);
 	printf("<rss version=\"%s\">\n", RSSVERSION);
 	printf("\t<channel>\n");
@@ -41,24 +41,24 @@ int osnova_rss(char *zagolovok, char *opisanie, unsigned long long id, short tip
 	return 0;
 }
 
-int obrabotka(const char *lenta, const unsigned kolichestvo) // put - путь
+int obrabotka(const char *lenta, const unsigned kolichestvo)
 {
 	json_t *root;
 	json_error_t error;
 	
-	root = json_loads(lenta, 0, &error);
+	root = json_loads(lenta, 0, &error); // загрузка JSON ответа для ленты
 	if (!root) {
 		fprintf(stderr, "%s: произошла ошибка при обработке ленты на строке %d: %s", nazvanie, error.line, error.text);
 		return -1;
 	}
 
-	json_t *response = json_object_get(root, "response");
+	json_t *response = json_object_get(root, "response"); // получение самого ответа
 	if(!json_is_object(root)) {
 		fprintf(stderr, "%s: произошла неизвестная ошибка при обработке ленты, возможно превышен лимит запросов на сервера или неработоспособность интернета\n", nazvanie);
 		return -1;
 	}
 	
-	json_t *post;
+	json_t *post; // нужные переменные для разных объектов
 	json_t *text;
 	json_t *id;
 	json_t *attachment;
@@ -66,7 +66,7 @@ int obrabotka(const char *lenta, const unsigned kolichestvo) // put - путь
 	json_t *photoarray;
 	json_t *is_pinned;
 	json_t *attachment_type;
-	for (unsigned i = 1; i <= kolichestvo; i++) {
+	for (unsigned i = 1; i <= kolichestvo; i++) { // вывод всех полученных записей в XML
 		post       = json_array_get(response, i);
 		text       = json_object_get(post, "text");
 		id         = json_object_get(post, "id");
