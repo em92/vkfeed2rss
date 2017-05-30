@@ -51,7 +51,7 @@ char *zagruzka_lenty(char *zapros)
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&feedchunk);
 	curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
 	res = curl_easy_perform(curl);
-	if (res == CURLE_OK) {
+	if (res != CURLE_OK) {
 		fprintf(stderr, "%s: ошибка при загрузке данных\n", nazvanie);
 		return NULL;
 	}
