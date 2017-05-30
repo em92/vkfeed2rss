@@ -18,12 +18,14 @@ int printf_nobr(const char *str) // вывод строки с заменой в
 	return 0;
 }
 
-char *vremja() // время, аналог команды date
+char *vremja(time_t epoch) // время, аналог команды date
+// epoch - unix-time для конвертации, если нужно получить текущее время, укажите 0
 {
 	time_t rawtime;
   struct tm * timeinfo;
   
-  time (&rawtime);
+  if (epoch == 0) time (&rawtime);
+  else rawtime = epoch;
   timeinfo = localtime (&rawtime);
   return asctime (timeinfo);
 }
@@ -36,7 +38,7 @@ int osnova_rss(char *zagolovok, char *opisanie, unsigned long long id, short tip
 	if (tip == 1) printf("\t\t<link>https://vk.com/club%llu</link>\n", id);
 	else printf("\t\t<link>https://vk.com/id%llu</link>\n", id);
 	printf("\t\t<description>%s</description>\n", opisanie);
-	printf("\t\t<pubDate>%s</pubDate>\n", vremja());
+	printf("\t\t<pubDate>%s</pubDate>\n", vremja(0));
 	printf("\t\t<generator>%s</generator>\n", nazvanie);
 	return 0;
 }
@@ -61,6 +63,7 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 	json_t *post; // нужные переменные для разных объектов
 	json_t *text;
 	json_t *id;
+	json_t *date;
 	json_t *attachment;
 	json_t *image;
 	json_t *photoarray;
@@ -70,14 +73,15 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 		post       = json_array_get(response, i);
 		text       = json_object_get(post, "text");
 		id         = json_object_get(post, "id");
+		date 			 = json_object_get(post, "date");
 		is_pinned  = json_object_get(post, "is_pinned");
 		attachment = json_object_get(post, "attachment"); // картинка
 		attachment_type = json_object_get(attachment, "type");
 		photoarray = json_object_get(attachment, "photo");
 		image 		 = json_object_get(photoarray, "src_big");
 
-		if (json_string_value(text) == NULL) break;
-		else {
+		if (json_string_value(text) == NULL) break; 
+		else { // вывод записи
 			printf("\t\t<item>\n");
 			if (json_integer_value(is_pinned) == 0)
 				printf("\t\t<title>Запись %lli</title>\n", json_integer_value(id));
@@ -86,6 +90,7 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 			printf("\t\t<description>");
 			if (printf_nobr(json_string_value(text)) == -1) return -1; // эта строка, та, что выше и та, что ниже - сам пост, функция printf_nobr заменяет некоторые символы (которые может не понять читалка RSS) на помятные XML аналоги
 			printf("</description>\n");
+			printf("\t\t<pubDate>%s</pubDate>\n", vremja(json_integer_value(date)));
 			if (json_is_string(image) == 1) /* если к записи была приложена картинка */ printf("\t\t<enclosure url=\"%s\" type=\"image/jpg\" />\n", json_string_value(image));
 			printf("\t\t</item>\n");
 		}
