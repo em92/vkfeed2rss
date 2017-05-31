@@ -1,5 +1,8 @@
 CC=clang
-CFLAGS=-c -std=c99 -ggdb -Wall
+ifeq ($(which clang), "/usr/bin/clang")
+	CC=cc
+endif
+CFLAGS=-c -std=c99 -Wall
 LDFLAGS=-lcurl -ljansson
 SOURCES=main.c zagruzka.c zapros.c feed2rss.c
 OBJECTS=$(SOURCES:.c=.o)
