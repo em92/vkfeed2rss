@@ -50,13 +50,13 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 	
 	root = json_loads(lenta, 0, &error); // загрузка JSON ответа для ленты
 	if (!root) {
-		fprintf(stderr, "%s: произошла ошибка при обработке ленты на строке %d: %s", nazvanie, error.line, error.text);
+		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
 		return -1;
 	}
 
 	json_t *response = json_object_get(root, "response"); // получение самого ответа
 	if(!json_is_object(root)) {
-		fprintf(stderr, "%s: произошла неизвестная ошибка при обработке ленты, возможно превышен лимит запросов на сервера или неработоспособность интернета\n", nazvanie);
+		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
 		return -1;
 	}
 	
@@ -64,21 +64,18 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 	json_t *text;
 	json_t *id;
 	json_t *date;
+	json_t *attachments;
 	json_t *attachment;
 	json_t *image;
 	json_t *photoarray;
 	json_t *is_pinned;
-	json_t *attachment_type;
 	for (unsigned i = 1; i <= kolichestvo; i++) { // вывод всех полученных записей в XML
 		post       = json_array_get(response, i);
 		text       = json_object_get(post, "text");
 		id         = json_object_get(post, "id");
 		date 			 = json_object_get(post, "date");
 		is_pinned  = json_object_get(post, "is_pinned");
-		attachment = json_object_get(post, "attachment"); // картинка
-		attachment_type = json_object_get(attachment, "type");
-		photoarray = json_object_get(attachment, "photo");
-		image 		 = json_object_get(photoarray, "src_big");
+		attachments= json_object_get(post, "attachments"); // картинка
 
 		if (json_string_value(text) == NULL) break; 
 		else { // вывод записи
@@ -91,7 +88,13 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 			if (printf_nobr(json_string_value(text)) == -1) return -1; // эта строка, та, что выше и та, что ниже - сам пост, функция printf_nobr заменяет некоторые символы (которые может не понять читалка RSS) на помятные XML аналоги
 			printf("</description>\n");
 			printf("\t\t\t<pubDate>%s</pubDate>\n", vremja(json_integer_value(date)));
-			if (json_is_string(image) == 1) /* если к записи была приложена картинка */ printf("\t\t\t<enclosure url=\"%s\" type=\"image/jpg\" />\n", json_string_value(image));
+			for (unsigned o = 0; ; o++) {
+				attachment = json_array_get(attachments, o); // картинка
+				photoarray = json_object_get(attachment, "photo");
+				image 		 = json_object_get(photoarray, "src_big");
+				if (json_is_string(image) == 1) /* если к записи была приложена картинка */ printf("\t\t\t<enclosure url=\"%s\" type=\"image/jpg\" />\n", json_string_value(image));
+				else break;
+			}
 			printf("\t\t</item>\n");
 		}
 	}
