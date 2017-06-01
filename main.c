@@ -32,6 +32,7 @@ int main(int argc, char **argv)
 {
 	struct Parametry stranica; // заполнение формы запроса для API ВК
 	stranica.filter = 0; // временно нерабочая функция
+	stranica.kolichestvo = 20; // значение count по умолчанию, см. wall.get в документации к API VK
 	
 	char opisanie[128]; // описание ленты: название оригинальной группы, ссылка и т.д.
 	char zagolovok[64]; // заголовок RSS ленты
