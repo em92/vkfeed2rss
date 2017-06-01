@@ -1,6 +1,6 @@
 #pragma once
 
-#define VERSION "0.1"
+#define VERSION "0.2"
 
 #define nazvanie "vkfeed2rss"
 #define XMLVERSION "1.0"

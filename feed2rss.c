@@ -5,13 +5,19 @@
 
 #include "info.h"
 
-int printf_nobr(const char *str) // вывод строки с заменой всех "<br>" на XML аналог, нужен для вывода постов
+int printf_rss(const char *str) // вывод строки с заменой всех "<br>" на XML аналог, нужен для вывода постов
 {
 	for (unsigned i = 0; i < strlen(str); i++) {
-		if (str[i] == '<' && str[i+1] == 'b' && str[i+2] == 'r' && str[i+3] == '>') {
+		if (str[i] == '<' && str[i+1] == 'b' && str[i+2] == 'r' && str[i+3] == '>') { // обработка <br>
 			printf("&lt;br&gt;");
 			i += 3;
 		}
+		// тестовый функционал, не работает
+		//~ if (str[i] == 'h' && str[i+1] == 't' && str[i+2] == 't' && str[i+3] == 'p' && str[i+4] == ':' && str[i+5] == '/' && str[i+6] == '/') // обработка http ссылок
+		//~ {
+			//~ printf("&lt;a href=\"");
+			//~ i += 3;
+		//~ }
 		else
 			putchar(str[i]);
 	}
@@ -85,16 +91,17 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 			else if (json_integer_value(is_pinned) == 1)
 				printf("\t\t\t<title>Прикреплённая запись %lli</title>\n", json_integer_value(id));
 			printf("\t\t\t<description>");
-			if (printf_nobr(json_string_value(text)) == -1) return -1; // эта строка, та, что выше и та, что ниже - сам пост, функция printf_nobr заменяет некоторые символы (которые может не понять читалка RSS) на помятные XML аналоги
-			printf("</description>\n");
-			printf("\t\t\t<pubDate>%s</pubDate>\n", vremja(json_integer_value(date)));
+			if (printf_rss(json_string_value(text)) == -1) return -1; // эта строка, та, что выше и та, что ниже - сам пост, функция printf_nobr заменяет некоторые символы (которые может не понять читалка RSS) на помятные XML аналоги
+			// запись прикреплённых изображений кроме первой в описание
 			for (unsigned o = 0; ; o++) {
 				attachment = json_array_get(attachments, o); // картинка
 				photoarray = json_object_get(attachment, "photo");
 				image 		 = json_object_get(photoarray, "src_big");
-				if (json_is_string(image) == 1) /* если к записи была приложена картинка */ printf("\t\t\t<enclosure url=\"%s\" type=\"image/jpg\" />\n", json_string_value(image));
+				if (json_is_string(image) == 1) printf("&lt;img src=\"%s\"&gt;", json_string_value(image));
 				else break;
 			}
+			printf("</description>\n");
+			printf("\t\t\t<pubDate>%s</pubDate>\n", vremja(json_integer_value(date)));
 			printf("\t\t</item>\n");
 		}
 	}
