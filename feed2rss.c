@@ -97,7 +97,7 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 				attachment = json_array_get(attachments, o); // картинка
 				photoarray = json_object_get(attachment, "photo");
 				image 		 = json_object_get(photoarray, "src_big");
-				if (json_is_string(image) == 1) printf("&lt;img src=\"%s\"&gt;", json_string_value(image));
+				if (json_is_string(image) == 1) printf("&lt;img src=\"%s\"&gt;\n", json_string_value(image));
 				else break;
 			}
 			printf("</description>\n");

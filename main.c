@@ -80,12 +80,14 @@ int main(int argc, char **argv)
 						fprintf(stderr, "%s: неправильный аргумент типа, возможные: group, page\n", nazvanie);
 						return -1;
 					}
+					break;
 				case 'k':
-					if ((atoi(optarg) > 100) || (atoi(optarg) < 1)) {
+					if ((atoi(optarg) > 100) || (atoi(optarg) == 0)) {
 						fprintf(stderr, "%s: количество записей на страницу должно быть не больше 100 и не меньше 1, выбрано значение по умолчанию\n", nazvanie);
 						stranica.kolichestvo = 20; // костыль
 					}
 					else stranica.kolichestvo = atoi(optarg);
+					break;
 			}
 		}
 	}
