@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "info.h"
+#include "zapros.h"
 
 int printf_rss(const char *str) // вывод строки с заменой всех "<br>" на XML аналог, нужен для вывода постов
 {
@@ -36,13 +37,18 @@ char *vremja(time_t epoch) // время, аналог команды date
   return asctime (timeinfo);
 }
 
-int osnova_rss(char *zagolovok, char *opisanie, unsigned long long id, short tip) { // создаёт основу для RSS ленты
+int osnova_rss(char *zagolovok, char *opisanie, struct Parametry stranica) { // создаёт основу для RSS ленты
 	printf("<?xml version=\"%s\"?>\n", XMLVERSION);
 	printf("<rss version=\"%s\">\n", RSSVERSION);
 	printf("\t<channel>\n");
 	printf("\t\t<title>%s</title>\n", zagolovok);
-	if (tip == 1) printf("\t\t<link>https://vk.com/club%llu</link>\n", id);
-	else printf("\t\t<link>https://vk.com/id%llu</link>\n", id);
+	if (stranica.domain != NULL) printf("\t\t<link>https://vk.com/%s</link>\n", stranica.domain);
+	else if (stranica.type == false) printf("\t\t<link>https://vk.com/id%llu</link>\n", stranica.id);
+	else if (stranica.type == true) printf("\t\t<link>https://vk.com/club%llu</link>\n", stranica.id);
+	else {
+		fprintf(stderr, "%s: произошла ошибка при начальном формировании RSS ленты, неверные данные страницы\n", nazvanie);
+		return -1;
+	}
 	printf("\t\t<description>%s</description>\n", opisanie);
 	printf("\t\t<pubDate>%s</pubDate>\n", vremja(0));
 	printf("\t\t<generator>%s</generator>\n", nazvanie);

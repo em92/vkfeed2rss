@@ -8,19 +8,20 @@
 #include "feed2rss.h"
 #include "info.h"
 
-void pomosch() // выводит помощь к программе
+void pomosch(char **argv) // выводит помощь к программе
 {
 	fprintf(stdout, "Использование:\n"
 		"\t-h - эта помощь\n"
 		"\t-v - версия программы\n"
-		"\t-i - id сообщества или страницы, обязательно должен быть числовым\n"
-		"\t-t - тип: group - сообщество, page - страница\n"
-		"\t-d - описание для RSS ленты\n"
+		"\t-i - id сообщества\n"
+		"\t-s - id пользователя\n"
+		"\t-d - домен страницы, напр. \"apiclub\"\n"
+		"\t-k - количество записей, максимум 100, 20 по умолчанию\n"
+		"\t-p - описание для RSS ленты\n"
 		"\t-z - заголовок для RSS ленты\n"
 		"\t-o - путь к записываемому файлу (не работает, вывод в stdout)\n"
-		"\t-k - количество записей, максимум 100, 20 по умолчанию\n"
 		"\t-f - фильтр (в этой версии не работает)\n"
-		"\nПример: vkfeed2rss -i 147930146 -t group -z \"Обычное имя сообщества\" -d \"Хорошее описание\" -k 20\n");
+		"\n%s -i 147930146 -z \"Имя сообщества\" -p \"Описание сообщества\" -k 20\n", argv[0]);
 }
 
 void version() // выводит версию программы
@@ -31,6 +32,8 @@ void version() // выводит версию программы
 int main(int argc, char **argv)
 {
 	struct Parametry stranica; // заполнение формы запроса для API ВК
+	stranica.domain = NULL; // необходимая очистка
+	stranica.id = 0; // тоже
 	stranica.filter = 0; // временно нерабочая функция
 	stranica.kolichestvo = 20; // значение count по умолчанию, см. wall.get в документации к API VK
 	
@@ -38,20 +41,20 @@ int main(int argc, char **argv)
 	char zagolovok[64]; // заголовок RSS ленты
 
 	if (argc == 1) { // если нет аргументов, то выводить помощь
-		pomosch();
+		pomosch(argv);
 		return 0;
 	}
 	else { // если аргументы есть, то будут обрабатываться
 		int c;
-		while ((c = getopt(argc, argv, "hvi:t:d:z:k:f")) != -1) { // getopt как и обычно
+		while ((c = getopt(argc, argv, "hvi:s:d:z:p:k:f")) != -1) { // getopt как и обычно
 			switch (c) {
 				case 'h': // помощь
-					pomosch();
+					pomosch(argv);
 					return 0;
 				case 'v': // вывод версии
 					version();
 					return 0;
-				case 'd': // описание
+				case 'p': // описание
 					if (sizeof(optarg) > sizeof(opisanie)) {
 						if (realloc(opisanie, sizeof(optarg) + (sizeof(optarg) - sizeof(opisanie)) + 1) == NULL) {
 							fprintf(stderr, "%s: ошибка при реаллокации памяти\n", nazvanie);
@@ -69,18 +72,17 @@ int main(int argc, char **argv)
 					}
 					strcpy(zagolovok, optarg);
 					break;
-				case 'i': // id
+				case 'i': // группа
 					stranica.id = atoi(optarg);
+					stranica.type = true;
 					break;
-				case 't': // тип группы
-					if (strcmp(optarg, "group") == 0)
-						stranica.tip = true;
-					else if (strcmp(optarg, "page") == 0)
-						stranica.tip = false;
-					else {
-						fprintf(stderr, "%s: неправильный аргумент типа, возможные: group, page\n", nazvanie);
-						return -1;
-					}
+				case 's': // пользователь
+					stranica.id = atoi(optarg);
+					stranica.type = false;
+					break;
+				case 'd':
+					if (stranica.id == 0) // если id введён не был, то проверка домена
+						stranica.domain = optarg;
 					break;
 				case 'k':
 					if ((atoi(optarg) > 100) || (atoi(optarg) == 0)) {
@@ -107,7 +109,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	osnova_rss(zagolovok, opisanie, stranica.id, stranica.tip); // сделать основу для RSS ленты
+	osnova_rss(zagolovok, opisanie, stranica); // сделать основу для RSS ленты
 
 	obrabotka(lenta, stranica.kolichestvo); // обработать ленту для RSS
 	
