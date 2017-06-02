@@ -51,7 +51,7 @@ int osnova_rss(char *zagolovok, char *opisanie, struct Parametry stranica) { // 
 	}
 	printf("\t\t<description>%s</description>\n", opisanie);
 	printf("\t\t<pubDate>%s</pubDate>\n", vremja(0));
-	printf("\t\t<generator>%s</generator>\n", nazvanie);
+	printf("\t\t<generator>%s v%s</generator>\n", nazvanie, VERSION);
 	return 0;
 }
 
