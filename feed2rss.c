@@ -6,6 +6,8 @@
 #include "info.h"
 #include "zapros.h"
 
+//char nbuff[64]; // костыль для буффера
+
 int printf_rss(const char *str) // вывод строки с заменой всех "<br>" на XML аналог, нужен для вывода постов
 {
 	for (unsigned i = 0; i < strlen(str); i++) {
@@ -33,15 +35,55 @@ char *vremja(time_t epoch) // время, аналог команды date
   
   if (epoch == 0) time (&rawtime);
   else rawtime = epoch;
-  timeinfo = localtime (&rawtime);
-  return asctime (timeinfo);
+  timeinfo = gmtime (&rawtime);
+  char *buff = asctime (timeinfo);
+  for (unsigned i = 0; ; i++) { // убрать \n на конце строки
+		if (buff[i] == '\0') {
+			buff[i-1] = '\0';
+			return buff;
+		}
+	}
 }
 
-int osnova_rss(char *zagolovok, char *opisanie, struct Parametry stranica) { // создаёт основу для RSS ленты
+char *poluchit_zagolovok(struct Parametry stranica)
+{
+	json_t *root;
+	json_error_t error;
+	
+	root = json_loads(stranica.info, 0, &error);
+	if (!root) {
+		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
+		return NULL;
+	}
+	
+	json_t *response = json_object_get(root, "response"); // получение самого ответа
+	if(!response) {
+		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
+		return NULL;
+	}
+	
+	static char buff[64];
+	json_t *array = json_array_get(response, 0);
+	json_t *name = json_object_get(array, "name");
+	sprintf(buff, "%s", json_string_value(name));
+	
+	return buff;
+}
+
+char *poluchit_opisanie(struct Parametry stranica)
+{
+	static char buff[64];
+	sprintf(buff, "%s", "тест");
+	
+	return buff;
+}
+
+int osnova_rss(struct Parametry stranica) // создаёт основу для RSS ленты
+{
 	printf("<?xml version=\"%s\"?>\n", XMLVERSION);
 	printf("<rss version=\"%s\">\n", RSSVERSION);
 	printf("\t<channel>\n");
-	printf("\t\t<title>%s</title>\n", zagolovok);
+	printf("\t\t<title>%s</title>\n", stranica.zagolovok);
 	if (stranica.domain != NULL) printf("\t\t<link>https://vk.com/%s</link>\n", stranica.domain);
 	else if (stranica.type == false) printf("\t\t<link>https://vk.com/id%llu</link>\n", stranica.id);
 	else if (stranica.type == true) printf("\t\t<link>https://vk.com/club%llu</link>\n", stranica.id);
@@ -49,25 +91,25 @@ int osnova_rss(char *zagolovok, char *opisanie, struct Parametry stranica) { // 
 		fprintf(stderr, "%s: произошла ошибка при начальном формировании RSS ленты, неверные данные страницы\n", nazvanie);
 		return -1;
 	}
-	printf("\t\t<description>%s</description>\n", opisanie);
+	printf("\t\t<description>%s</description>\n", stranica.opisanie);
 	printf("\t\t<pubDate>%s</pubDate>\n", vremja(0));
 	printf("\t\t<generator>%s v%s</generator>\n", nazvanie, VERSION);
 	return 0;
 }
 
-int obrabotka(const char *lenta, const unsigned kolichestvo)
+int obrabotka(struct Parametry stranica)
 {
 	json_t *root;
 	json_error_t error;
 	
-	root = json_loads(lenta, 0, &error); // загрузка JSON ответа для ленты
+	root = json_loads(stranica.lenta, 0, &error); // загрузка JSON ответа для ленты
 	if (!root) {
 		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
 		return -1;
 	}
 
 	json_t *response = json_object_get(root, "response"); // получение самого ответа
-	if(!json_is_object(root)) {
+	if(!response) {
 		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
 		return -1;
 	}
@@ -81,7 +123,7 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 	json_t *image;
 	json_t *photoarray;
 	json_t *is_pinned;
-	for (unsigned i = 1; i <= kolichestvo; i++) { // вывод всех полученных записей в XML
+	for (unsigned i = 1; i <= stranica.kolichestvo; i++) { // вывод всех полученных записей в XML
 		post       = json_array_get(response, i);
 		text       = json_object_get(post, "text");
 		id         = json_object_get(post, "id");
@@ -99,6 +141,7 @@ int obrabotka(const char *lenta, const unsigned kolichestvo)
 			printf("\t\t\t<description>");
 			if (printf_rss(json_string_value(text)) == -1) return -1; // эта строка, та, что выше и та, что ниже - сам пост, функция printf_nobr заменяет некоторые символы (которые может не понять читалка RSS) на помятные XML аналоги
 			// запись прикреплённых изображений кроме первой в описание
+			putchar('\n');
 			for (unsigned o = 0; ; o++) {
 				attachment = json_array_get(attachments, o); // картинка
 				photoarray = json_object_get(attachment, "photo");

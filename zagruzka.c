@@ -57,7 +57,7 @@ char *zagruzka_lenty(char *zapros)
 	}
 	
 	curl_easy_cleanup(curl);
-	free(feedchunk.memory);
+	//free(feedchunk.memory);
 	curl_global_cleanup();
 	
 	return feedchunk.memory;

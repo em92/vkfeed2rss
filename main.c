@@ -33,12 +33,16 @@ int main(int argc, char **argv)
 {
 	struct Parametry stranica; // заполнение формы запроса для API ВК
 	stranica.domain = NULL; // необходимая очистка
+	stranica.zagolovok = NULL;
+	stranica.opisanie = NULL;
+	stranica.lenta = NULL;
+	stranica.info = NULL;
 	stranica.id = 0; // тоже
 	stranica.filter = 0; // временно нерабочая функция
 	stranica.kolichestvo = 20; // значение count по умолчанию, см. wall.get в документации к API VK
 	
-	char opisanie[128]; // описание ленты: название оригинальной группы, ссылка и т.д.
-	char zagolovok[64]; // заголовок RSS ленты
+	//~ char opisanie[128]; // описание ленты: название оригинальной группы, ссылка и т.д.
+	//~ char zagolovok[64]; // заголовок RSS ленты
 
 	if (argc == 1) { // если нет аргументов, то выводить помощь
 		pomosch(argv);
@@ -55,22 +59,24 @@ int main(int argc, char **argv)
 					version();
 					return 0;
 				case 'p': // описание
-					if (sizeof(optarg) > sizeof(opisanie)) {
-						if (realloc(opisanie, sizeof(optarg) + (sizeof(optarg) - sizeof(opisanie)) + 1) == NULL) {
+					stranica.opisanie = calloc(64, 1);
+					if (sizeof(optarg) > sizeof(stranica.opisanie)) {
+						if (realloc(stranica.opisanie, sizeof(optarg) + (sizeof(optarg) - sizeof(stranica.opisanie)) + 1) == NULL) {
 							fprintf(stderr, "%s: ошибка при реаллокации памяти\n", nazvanie);
 							return -1;
 						}
 					}
-					strcpy(opisanie, optarg);
+					strcpy(stranica.opisanie, optarg);
 					break;
 				case 'z': // заголовок
-					if (sizeof(optarg) > sizeof(zagolovok)) {
-						if (realloc(zagolovok, sizeof(optarg) + (sizeof(optarg) - sizeof(zagolovok)) + 1) == NULL) {
+					stranica.zagolovok = calloc(32, 1);
+					if (sizeof(optarg) > sizeof(stranica.zagolovok)) {
+						if (realloc(stranica.zagolovok, sizeof(optarg) + (sizeof(optarg) - sizeof(stranica.zagolovok)) + 1) == NULL) {
 							fprintf(stderr, "%s: ошибка при реаллокации памяти\n", nazvanie);
 							return -1;
 						}
 					}
-					strcpy(zagolovok, optarg);
+					strcpy(stranica.zagolovok, optarg);
 					break;
 				case 'i': // группа
 					stranica.id = atoi(optarg);
@@ -97,21 +103,37 @@ int main(int argc, char **argv)
 	
 	// сейчас мы получим JSON вывод стены и потом будем его парсить
 	
-	char *url_zaprosa = poluchit_url_zaprosa(stranica); // создать ссылку запроса для API
-	if (url_zaprosa == NULL) { // обработка ошибок
+	char *url_zaprosa_lenty = poluchit_url_zaprosa_lenty(stranica); // создать ссылку запроса для API чтобы получить ленту
+	if (url_zaprosa_lenty == NULL) { // обработка ошибок
 		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
 		return -1;
 	}
 	
-	char *lenta = zagruzka_lenty(url_zaprosa); // парсим
-	if (lenta == NULL) { // обработка ошибок
+	char *url_zaprosa_info_stranicy = poluchit_url_zaprosa_info_stranicy(stranica); // создать ссылку запроса для API чтобы получить информацию о странице
+	if (url_zaprosa_info_stranicy == NULL) { // обработка ошибок
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		return -1;
+	}
+	
+	stranica.lenta = zagruzka_lenty(url_zaprosa_lenty); // загружаем ленту
+	if (stranica.lenta == NULL) { // обработка ошибок
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при обращении к API ВКонтакте\n", nazvanie);
+		return -1;
+	}
+	
+	stranica.info = zagruzka_lenty(url_zaprosa_info_stranicy); // загружаем информацию о странице
+	if (stranica.info == NULL) {
 		fprintf(stderr, "%s: произошла непредвиденная ошибка при обращении к API ВКонтакте\n", nazvanie);
 		return -1;
 	}
 
-	osnova_rss(zagolovok, opisanie, stranica); // сделать основу для RSS ленты
+	stranica.zagolovok = poluchit_zagolovok(stranica); // полученное stranica.info надо обработать и записать данные
+	
+	stranica.opisanie  = poluchit_opisanie(stranica);
 
-	obrabotka(lenta, stranica.kolichestvo); // обработать ленту для RSS
+	osnova_rss(stranica); // сделать основу для RSS ленты
+
+	obrabotka(stranica); // обработать ленту для RSS
 	
 	return 0;
 }
