@@ -36,17 +36,16 @@ char *poluchit_url_zaprosa_lenty(struct Parametry stranica)
 
 char *poluchit_url_zaprosa_info_stranicy(struct Parametry stranica)
 {
-	//if ()
 	static char url[72];
 	
 	if (stranica.type == true && stranica.domain == NULL) {
-		if (sprintf(url, "https://api.vk.com/method/groups.getById?group_id=%llu", stranica.id) < 0) {
+		if (sprintf(url, "https://api.vk.com/method/groups.getById?group_id=%llu&fields=description&v=%s", stranica.id, APIVERSION) < 0) {
 			fprintf(stderr, "%s: sprintf() error\n", nazvanie);
 			return NULL;
 		}
 	}
 	else if (stranica.id == 0 && stranica.domain != NULL) {
-		if (sprintf(url, "https://api.vk.com/method/groups.getById?group_id=%s", stranica.domain) < 0) {
+		if (sprintf(url, "https://api.vk.com/method/groups.getById?group_id=%s&fields=description&v=%s", stranica.domain, APIVERSION) < 0) {
 			fprintf(stderr, "%s: sprintf() error\n", nazvanie);
 			return NULL;
 		}

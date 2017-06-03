@@ -6,21 +6,42 @@
 #include "info.h"
 #include "zapros.h"
 
-//char nbuff[64]; // костыль для буффера
-
 int printf_rss(const char *str) // вывод строки с заменой всех "<br>" на XML аналог, нужен для вывода постов
 {
 	for (unsigned i = 0; i < strlen(str); i++) {
-		if (str[i] == '<' && str[i+1] == 'b' && str[i+2] == 'r' && str[i+3] == '>') { // обработка <br>
+		unsigned buff = i;
+		if (str[i] == '\n') { // обработка <br>
 			printf("&lt;br&gt;");
-			i += 3;
+			i++;
 		}
-		// тестовый функционал, не работает
-		//~ if (str[i] == 'h' && str[i+1] == 't' && str[i+2] == 't' && str[i+3] == 'p' && str[i+4] == ':' && str[i+5] == '/' && str[i+6] == '/') // обработка http ссылок
-		//~ {
-			//~ printf("&lt;a href=\"");
-			//~ i += 3;
-		//~ }
+		
+		if (str[i] == '<') {
+			printf("&lt;");
+			i++;
+		}
+			
+		if (str[i] == '>') {
+			printf("&gt;");
+			i++;
+		}
+			
+		if (str[i] == '&') {
+			printf("&amp;");
+			i++;
+		}
+			
+		if (str[i] == '\'') {
+			printf("&apos;");
+			i++;
+		}
+			
+		if (str[i] == '\"') {
+			printf("&quot;");
+			i++;
+		}
+			
+		if (i > buff)
+			i--;
 		else
 			putchar(str[i]);
 	}
@@ -72,8 +93,25 @@ char *poluchit_zagolovok(struct Parametry stranica)
 
 char *poluchit_opisanie(struct Parametry stranica)
 {
+	json_t *root;
+	json_error_t error;
+	
+	root = json_loads(stranica.info, 0, &error);
+	if (!root) {
+		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
+		return NULL;
+	}
+	
+	json_t *response = json_object_get(root, "response"); // получение самого ответа
+	if(!response) {
+		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
+		return NULL;
+	}
+	
 	static char buff[64];
-	sprintf(buff, "%s", "тест");
+	json_t *array = json_array_get(response, 0);
+	json_t *name = json_object_get(array, "description");
+	sprintf(buff, "%s", json_string_value(name));
 	
 	return buff;
 }
@@ -91,7 +129,9 @@ int osnova_rss(struct Parametry stranica) // создаёт основу для 
 		fprintf(stderr, "%s: произошла ошибка при начальном формировании RSS ленты, неверные данные страницы\n", nazvanie);
 		return -1;
 	}
-	printf("\t\t<description>%s</description>\n", stranica.opisanie);
+	printf("\t\t<description>");
+	printf_rss(stranica.opisanie);
+	printf("</description>\n");
 	printf("\t\t<pubDate>%s</pubDate>\n", vremja(0));
 	printf("\t\t<generator>%s v%s</generator>\n", nazvanie, VERSION);
 	return 0;
@@ -113,28 +153,8 @@ int obrabotka(struct Parametry stranica)
 		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
 		return -1;
 	}
-	
-	//~ json_t *post; // нужные переменные для разных объектов
-	//~ json_t *text;
-	//~ json_t *id;
-	//~ json_t *date;
-	//~ json_t *attachments;
-	//~ json_t *attachment;
-	//~ json_t *image;
-	//~ json_t *photoarray;
-	//~ json_t *is_pinned;
+
 	for (unsigned i = 0; i < stranica.kolichestvo; i++) { // вывод всех полученных записей в XML
-		//~ post       = json_array_get(response, i);
-		//~ text       = json_object_get(post, "text");
-		//~ id         = json_object_get(post, "id");
-		//~ date 			 = json_object_get(post, "date");
-		//~ is_pinned  = json_object_get(post, "is_pinned");
-		//~ attachments= json_object_get(post, "attachments"); // картинка
-		//~ if (!post || !text || !id || !date || !is_pinned || !attachments) {
-			//~ fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
-			//~ return -1;
-		//~ }
-		
 		json_t *count = json_object_get(response, "count");
 		json_t *items = json_object_get(response, "items");
 		json_t *post = json_array_get(items, i);
