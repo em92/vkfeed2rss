@@ -114,23 +114,40 @@ int obrabotka(struct Parametry stranica)
 		return -1;
 	}
 	
-	json_t *post; // нужные переменные для разных объектов
-	json_t *text;
-	json_t *id;
-	json_t *date;
-	json_t *attachments;
-	json_t *attachment;
-	json_t *image;
-	json_t *photoarray;
-	json_t *is_pinned;
-	for (unsigned i = 1; i <= stranica.kolichestvo; i++) { // вывод всех полученных записей в XML
-		post       = json_array_get(response, i);
-		text       = json_object_get(post, "text");
-		id         = json_object_get(post, "id");
-		date 			 = json_object_get(post, "date");
-		is_pinned  = json_object_get(post, "is_pinned");
-		attachments= json_object_get(post, "attachments"); // картинка
-
+	//~ json_t *post; // нужные переменные для разных объектов
+	//~ json_t *text;
+	//~ json_t *id;
+	//~ json_t *date;
+	//~ json_t *attachments;
+	//~ json_t *attachment;
+	//~ json_t *image;
+	//~ json_t *photoarray;
+	//~ json_t *is_pinned;
+	for (unsigned i = 0; i < stranica.kolichestvo; i++) { // вывод всех полученных записей в XML
+		//~ post       = json_array_get(response, i);
+		//~ text       = json_object_get(post, "text");
+		//~ id         = json_object_get(post, "id");
+		//~ date 			 = json_object_get(post, "date");
+		//~ is_pinned  = json_object_get(post, "is_pinned");
+		//~ attachments= json_object_get(post, "attachments"); // картинка
+		//~ if (!post || !text || !id || !date || !is_pinned || !attachments) {
+			//~ fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
+			//~ return -1;
+		//~ }
+		
+		json_t *count = json_object_get(response, "count");
+		json_t *items = json_object_get(response, "items");
+		json_t *post = json_array_get(items, i);
+		if (!count || !items) {
+			fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
+			return -1;
+		}
+		json_t *id = json_object_get(post, "id");
+		json_t *date = json_object_get(post, "date");
+		json_t *text = json_object_get(post, "text");
+		json_t *attachments = json_object_get(post, "attachments");
+		json_t *is_pinned = json_object_get(post, "is_pinned");
+		
 		if (json_string_value(text) == NULL) break; 
 		else { // вывод записи
 			printf("\t\t<item>\n");
@@ -141,11 +158,10 @@ int obrabotka(struct Parametry stranica)
 			printf("\t\t\t<description>");
 			if (printf_rss(json_string_value(text)) == -1) return -1; // эта строка, та, что выше и та, что ниже - сам пост, функция printf_nobr заменяет некоторые символы (которые может не понять читалка RSS) на помятные XML аналоги
 			// запись прикреплённых изображений кроме первой в описание
-			putchar('\n');
 			for (unsigned o = 0; ; o++) {
-				attachment = json_array_get(attachments, o); // картинка
-				photoarray = json_object_get(attachment, "photo");
-				image 		 = json_object_get(photoarray, "src_big");
+				json_t *attachment = json_array_get(attachments, o); // картинка
+				json_t *photoarray = json_object_get(attachment, "photo");
+				json_t *image 		 = json_object_get(photoarray, "photo_604");
 				if (json_is_string(image) == 1) printf("&lt;img src=\"%s\"&gt;\n", json_string_value(image));
 				else break;
 			}
