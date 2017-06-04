@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-c -ggdb -std=c99 -Wall
+CFLAGS=-c -std=c99 -Wall
 LDFLAGS=-lcurl -ljansson
 SOURCES=main.c zagruzka.c zapros.c feed2rss.c
 OBJECTS=$(SOURCES:.c=.o)

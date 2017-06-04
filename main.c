@@ -17,7 +17,6 @@ void pomosch(char *zapusk) // выводит помощь к программе
 		"\t-s - id пользователя\n"
 		"\t-d - домен страницы, напр. \"apiclub\"\n"
 		"\t-k - количество записей, максимум 100, 20 по умолчанию\n"
-		"\t-o - путь к записываемому файлу (не работает, вывод в stdout)\n"
 		"\t-f - фильтр (в этой версии не работает)\n"
 		"\n%s -d apiclub\n", zapusk);
 }
@@ -79,22 +78,44 @@ int main(int argc, char **argv)
 	// сейчас мы получим JSON вывод стены и потом будем его парсить
 	
 	char *url_zaprosa_lenty = poluchit_url_zaprosa_lenty(stranica); // создать ссылку запроса для API чтобы получить ленту
+	if (url_zaprosa_lenty == NULL) {
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		return -1;
+	}
 	char *url_zaprosa_info_stranicy = poluchit_url_zaprosa_info_stranicy(stranica); // создать ссылку запроса для API чтобы получить информацию о странице
-	
+	if (url_zaprosa_info_stranicy == NULL) {
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		return -1;
+	}
+
 	stranica.lenta = zagruzka_lenty(url_zaprosa_lenty); // загружаем ленту
-	stranica.info = zagruzka_lenty(url_zaprosa_info_stranicy); // загружаем информацию о странице
+	if (stranica.lenta == NULL) {
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		return -1;
+	}
 	
-	if (url_zaprosa_info_stranicy == NULL || url_zaprosa_lenty == NULL ||
-			stranica.lenta == NULL || stranica.info == NULL) { // обработка ошибок
+	stranica.info = zagruzka_lenty(url_zaprosa_info_stranicy); // загружаем информацию о странице
+	if (stranica.info == NULL) {
 		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
 		return -1;
 	}
 
 	stranica.zagolovok = poluchit_zagolovok(stranica); // полученное stranica.info надо обработать и записать данные
+	if (stranica.zagolovok == NULL) {
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		return -1;
+	}
 	
 	stranica.opisanie  = poluchit_opisanie(stranica);
+	if (stranica.opisanie == NULL) {
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		return -1;
+	}
 
-	osnova_rss(stranica); // сделать основу для RSS ленты
+	if (osnova_rss(stranica)) { // сделать основу для RSS ленты
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		return -1;
+	}
 
 	obrabotka(stranica); // обработать ленту для RSS
 	
