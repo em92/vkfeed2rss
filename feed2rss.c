@@ -85,8 +85,19 @@ char *poluchit_zagolovok(struct Parametry stranica)
 	
 	static char buff[64];
 	json_t *array = json_array_get(response, 0);
-	json_t *name = json_object_get(array, "name");
-	sprintf(buff, "%s", json_string_value(name));
+	if (stranica.type == GROUP || stranica.domain != NULL) {
+		json_t *name = json_object_get(array, "name");
+		sprintf(buff, "%s", json_string_value(name));
+	}
+	else if (stranica.type == PAGE) {
+		json_t *first_name = json_object_get(array, "first_name");
+		json_t *last_name  = json_object_get(array, "last_name");
+		sprintf(buff, "%s %s", json_string_value(first_name), json_string_value(last_name));
+	}
+	else {
+		fprintf(stderr, "%s: при обработке имени сообщества или страницы произошла ошибка\n", nazvanie);
+		return NULL;
+	}
 	
 	return buff;
 }
@@ -110,8 +121,13 @@ char *poluchit_opisanie(struct Parametry stranica)
 	
 	static char buff[64];
 	json_t *array = json_array_get(response, 0);
-	json_t *name = json_object_get(array, "description");
-	sprintf(buff, "%s", json_string_value(name));
+	if (stranica.type == GROUP || stranica.domain != NULL) {
+		json_t *name = json_object_get(array, "description");
+		sprintf(buff, "%s", json_string_value(name));
+	}
+	else if (stranica.type == PAGE) {
+		return "Страница пользователя";
+	}
 	
 	return buff;
 }
