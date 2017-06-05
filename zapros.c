@@ -36,7 +36,7 @@ char *poluchit_url_zaprosa_lenty(struct Parametry stranica)
 
 char *poluchit_url_zaprosa_info_stranicy(struct Parametry stranica)
 {
-	static char url[72];
+	static char url[72 + sizeof(stranica.domain)];
 	
 	if (stranica.domain != NULL) { // для доменов
 		if (sprintf(url, "https://api.vk.com/method/groups.getById?group_id=%s&fields=description&v=%s", stranica.domain, APIVERSION) < 0) {

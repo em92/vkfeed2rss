@@ -10,34 +10,31 @@ int printf_rss(const char *str) // вывод строки с заменой в�
 {
 	for (unsigned i = 0; i < strlen(str); i++) {
 		unsigned buff = i;
-		if (str[i] == '\n') { // обработка <br>
-			printf("&lt;br&gt;");
-			i++;
-		}
-		
-		if (str[i] == '<') {
-			printf("&lt;");
-			i++;
-		}
-			
-		if (str[i] == '>') {
-			printf("&gt;");
-			i++;
-		}
-			
-		if (str[i] == '&') {
-			printf("&amp;");
-			i++;
-		}
-			
-		if (str[i] == '\'') {
-			printf("&apos;");
-			i++;
-		}
-			
-		if (str[i] == '\"') {
-			printf("&quot;");
-			i++;
+		switch (str[i]) {
+			case '\n': // обработка <br>
+				printf("&lt;br&gt;");
+				i++;
+				break;
+			case '<':
+				printf("&lt;");
+				i++;
+				break;
+			case '>':
+				printf("&gt;");
+				i++;
+				break;
+			case '&':
+				printf("&amp;");
+				i++;
+				break;
+			case '\'':
+				printf("&apos;");
+				i++;
+				break;
+			case '\"':
+				printf("&quot;");
+				i++;
+				break;
 		}
 			
 		if (i > buff)
