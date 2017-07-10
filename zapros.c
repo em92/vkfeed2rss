@@ -6,22 +6,22 @@
 
 char *poluchit_url_zaprosa_lenty(struct Parametry stranica)
 {
-	static char url[72];
+	static char url[256];
 		
 	if (stranica.type == true && stranica.domain == NULL) {
-		if (sprintf(url, "https://api.vk.com/method/wall.get?owner_id=-%llu&count=%u&v=%s", stranica.id, stranica.kolichestvo, APIVERSION) < 0) {
+		if (sprintf(url, "https://api.vk.com/method/wall.get?owner_id=-%llu&count=%u&v=%s&access_token=%s", stranica.id, stranica.kolichestvo, APIVERSION, APIKEY) < 0) {
 			fprintf(stderr, "%s: sprintf() error\n", nazvanie);
 			return NULL;
 		}
 	}
 	else if (stranica.type == false && stranica.domain == NULL) {
-		if (sprintf(url, "https://api.vk.com/method/wall.get?owner_id=%llu&count=%u&v=%s", stranica.id, stranica.kolichestvo, APIVERSION) < 0) {
+		if (sprintf(url, "https://api.vk.com/method/wall.get?owner_id=%llu&count=%u&v=%s&access_token=%s", stranica.id, stranica.kolichestvo, APIVERSION, APIKEY) < 0) {
 			fprintf(stderr, "%s: sprintf() error\n", nazvanie);
 			return NULL;
 		}
 	}
 	else if (stranica.domain != NULL) {
-		if (sprintf(url, "https://api.vk.com/method/wall.get?domain=%s&count=%u&v=%s", stranica.domain, stranica.kolichestvo, APIVERSION) < 0) {
+		if (sprintf(url, "https://api.vk.com/method/wall.get?domain=%s&count=%u&v=%s&access_token=%s", stranica.domain, stranica.kolichestvo, APIVERSION, APIKEY) < 0) {
 			fprintf(stderr, "%s: sprintf() error\n", nazvanie);
 			return NULL;
 		}
@@ -36,7 +36,7 @@ char *poluchit_url_zaprosa_lenty(struct Parametry stranica)
 
 char *poluchit_url_zaprosa_info_stranicy(struct Parametry stranica)
 {
-	static char url[72 + sizeof(stranica.domain)];
+	static char url[72];
 	
 	if (stranica.domain != NULL) { // для доменов
 		if (sprintf(url, "https://api.vk.com/method/groups.getById?group_id=%s&fields=description&v=%s", stranica.domain, APIVERSION) < 0) {

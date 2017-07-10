@@ -82,18 +82,22 @@ char *poluchit_zagolovok(struct Parametry stranica)
 	
 	static char buff[64];
 	json_t *array = json_array_get(response, 0);
-	if (stranica.type == GROUP || stranica.domain != NULL) {
+	if (stranica.type == GROUP || stranica.domain != NULL) { // если дан id группы
 		json_t *name = json_object_get(array, "name");
 		sprintf(buff, "%s", json_string_value(name));
 	}
-	else if (stranica.type == PAGE) {
+	else if (stranica.type == PAGE) { // если страница
 		json_t *first_name = json_object_get(array, "first_name");
 		json_t *last_name  = json_object_get(array, "last_name");
 		sprintf(buff, "%s %s", json_string_value(first_name), json_string_value(last_name));
 	}
-	else {
+	else { 
 		fprintf(stderr, "%s: при обработке имени сообщества или страницы произошла ошибка\n", nazvanie);
 		return NULL;
+	}
+	
+	if (stranica.domain != NULL) {
+		
 	}
 	
 	return buff;
@@ -200,6 +204,15 @@ int obrabotka(struct Parametry stranica)
 			}
 			printf("</description>\n");
 			printf("\t\t\t<pubDate>%s</pubDate>\n", vremja(json_integer_value(date)));
+			if (stranica.domain != NULL) printf("\t\t<link>https://vk.com/%s", stranica.domain);
+			else if (stranica.type == false) printf("\t\t<link>https://vk.com/id%llu", stranica.id);
+			else if (stranica.type == true) printf("\t\t<link>https://vk.com/club%llu", stranica.id);
+			else {
+				fprintf(stderr, "%s: произошла ошибка при начальном формировании RSS ленты, неверные данные страницы\n", nazvanie);
+				return -1;
+			}
+			printf("?w=wall-%llu_%lli</link>\n", stranica.id, json_integer_value(id));
+			
 			printf("\t\t</item>\n");
 		}
 	}
