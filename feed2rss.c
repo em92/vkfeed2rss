@@ -6,7 +6,7 @@
 #include "info.h"
 #include "zapros.h"
 
-int printf_rss(const char *str) // вывод строки с заменой всех "<br>" на XML аналог, нужен для вывода постов
+int printf_rss(const char *str) // вывод строки с заменой некоторых тегов на XML аналог, нужен для вывода постов
 {
 	for (unsigned i = 0; i < strlen(str); i++) {
 		unsigned buff = i;
@@ -110,13 +110,13 @@ char *poluchit_opisanie(struct Parametry stranica)
 	
 	root = json_loads(stranica.info, 0, &error);
 	if (!root) {
-		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
+		fprintf(stderr, "%s: произошла ошибка при начальной обработке настроек страницы: %s: %s\n", nazvanie, error.text, error.source);
 		return NULL;
 	}
 	
 	json_t *response = json_object_get(root, "response"); // получение самого ответа
 	if(!response) {
-		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
+		fprintf(stderr, "%s: произошла ошибка при обработке настроек страницы: %s: %s\n", nazvanie, error.text, error.source);
 		return NULL;
 	}
 	
@@ -161,13 +161,14 @@ int obrabotka(struct Parametry stranica)
 	
 	root = json_loads(stranica.lenta, 0, &error); // загрузка JSON ответа для ленты
 	if (!root) {
-		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
+		fprintf(stderr, "%s: произошла ошибка при начальной обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
 		return -1;
 	}
 
 	json_t *response = json_object_get(root, "response"); // получение самого ответа
 	if(!response) {
 		fprintf(stderr, "%s: произошла ошибка при обработке ленты: %s: %s\n", nazvanie, error.text, error.source);
+		fprintf(stderr, "%s: %s\n", nazvanie, stranica.lenta);
 		return -1;
 	}
 
