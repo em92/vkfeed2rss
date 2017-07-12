@@ -6,7 +6,7 @@
 
 char *poluchit_url_zaprosa_lenty(struct Parametry stranica)
 {
-	static char url[256];
+	static char url[192];
 		
 	if (stranica.type == true && stranica.domain == NULL) {
 		if (sprintf(url, "https://api.vk.com/method/wall.get?owner_id=-%llu&count=%u&v=%s&access_token=%s", stranica.id, stranica.kolichestvo, APIVERSION, APIKEY) < 0) {

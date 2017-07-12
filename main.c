@@ -8,7 +8,7 @@
 #include "feed2rss.h"
 #include "info.h"
 
-void pomosch(char *zapusk) // выводит помощь к программе
+void pomosch(const char *zapusk) // помощь по программе
 {
 	fprintf(stdout, "Использование:\n"
 		"\t-h - эта помощь\n"
@@ -28,17 +28,17 @@ void version() // выводит версию программы
 
 int main(int argc, char **argv)
 {
-	struct Parametry stranica; // заполнение формы запроса для API ВК
+	struct Parametry stranica; // читайте файл zapros.h
 	stranica.domain = NULL; // необходимая очистка
 	stranica.zagolovok = NULL;
 	stranica.opisanie = NULL;
 	stranica.lenta = NULL;
 	stranica.info = NULL;
-	stranica.id = 0; // тоже
+	stranica.id = 0;
 	stranica.filter = 0; // временно нерабочая функция
 	stranica.kolichestvo = 20; // значение count по умолчанию, см. wall.get в документации к API VK
 
-	if (argc == 1) { // если нет аргументов, то выводить помощь
+	if (argc == 1) { // если нет аргументов, то вывести помощь
 		pomosch(argv[0]);
 		return 0;
 	}
@@ -52,19 +52,19 @@ int main(int argc, char **argv)
 				case 'v': // вывод версии
 					version();
 					return 0;
-				case 'i': // группа
-					stranica.id = atoi(optarg);
+				case 'i': // id группы
+					stranica.id = atoll(optarg);
 					stranica.type = true;
 					break;
-				case 's': // пользователь
-					stranica.id = atoi(optarg);
+				case 's': // id пользователя
+					stranica.id = atoll(optarg);
 					stranica.type = false;
 					break;
-				case 'd':
+				case 'd': // домен страницы
 					if (stranica.id == 0) // если id введён не был, то проверка домена
 						stranica.domain = optarg;
 					break;
-				case 'k':
+				case 'k': // количество постов в ленте
 					if (atoi(optarg) > 100 || atoi(optarg) < 0) {
 						fprintf(stderr, "%s: количество записей на страницу должно быть не больше 100 и не меньше 0, выбрано значение по умолчанию\n", nazvanie);
 						stranica.kolichestvo = 20; // костыль
@@ -90,34 +90,37 @@ int main(int argc, char **argv)
 
 	stranica.lenta = zagruzka_lenty(url_zaprosa_lenty); // загружаем ленту
 	if (stranica.lenta == NULL) {
-		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при загрузке ленты\n", nazvanie);
 		return -1;
 	}
 	
 	stranica.info = zagruzka_lenty(url_zaprosa_info_stranicy); // загружаем информацию о странице
 	if (stranica.info == NULL) {
-		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при загрузке информации о страницы\n", nazvanie);
 		return -1;
 	}
 
 	stranica.zagolovok = poluchit_zagolovok(stranica); // полученное stranica.info надо обработать и записать данные
 	if (stranica.zagolovok == NULL) {
-		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при обработке данных\n", nazvanie);
 		return -1;
 	}
 	
 	stranica.opisanie  = poluchit_opisanie(stranica);
 	if (stranica.opisanie == NULL) {
-		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при обработке данных\n", nazvanie);
 		return -1;
 	}
 
-	if (osnova_rss(stranica)) { // сделать основу для RSS ленты
-		fprintf(stderr, "%s: произошла непредвиденная ошибка при образовании запроса\n", nazvanie);
+	if (osnova_rss(stranica) == -1) { // сделать основу для RSS ленты
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при записи RSS ленты\n", nazvanie);
 		return -1;
 	}
 
-	obrabotka(stranica); // обработать ленту для RSS
-	
+	if (obrabotka(stranica) == -1) { // обработать ленту для RSS, заполняет RSS ленту записями
+		fprintf(stderr, "%s: произошла непредвиденная ошибка при записи записей в RSS ленты\n", nazvanie);
+		return -1;
+	}
+
 	return 0;
 }
