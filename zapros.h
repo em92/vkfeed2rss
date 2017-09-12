@@ -12,6 +12,7 @@ struct Parametry { // форма запроса для VK
 	char *info; // информация о странице, необработанная
 	unsigned short kolichestvo; // количество записей в RSS ленте, не больше 100
 	unsigned short filter; // фильтр, не работает
+	bool verbose;
 };
 
 char *poluchit_url_zaprosa_lenty(struct Parametry);

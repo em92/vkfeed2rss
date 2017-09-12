@@ -156,6 +156,10 @@ int osnova_rss(struct Parametry stranica) // создаёт основу для 
 
 int obrabotka(struct Parametry stranica)
 {
+	if (stranica.verbose) {
+		printf("<!-- %s -->\n", stranica.lenta);
+	}
+
 	json_t *root;
 	json_error_t error;
 	

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <getopt.h>
 
@@ -18,6 +19,7 @@ void pomosch(const char *zapusk) // помощь по программе
 		"\t-d - домен страницы, напр. \"apiclub\"\n"
 		"\t-k - количество записей, максимум 100, 20 по умолчанию\n"
 		"\t-f - фильтр (в этой версии не работает)\n"
+		"\t-V - режим отладки (выводит сырой ответ API в ленте в комментариях)\n"
 		"\n%s -d apiclub\n", zapusk);
 }
 
@@ -37,6 +39,7 @@ int main(int argc, char **argv)
 	stranica.id = 0;
 	stranica.filter = 0; // временно нерабочая функция
 	stranica.kolichestvo = 20; // значение count по умолчанию, см. wall.get в документации к API VK
+	stranica.verbose = false;
 
 	if (argc == 1) { // если нет аргументов, то вывести помощь
 		pomosch(argv[0]);
@@ -44,7 +47,7 @@ int main(int argc, char **argv)
 	}
 	else { // если аргументы есть, то будут обрабатываться
 		int c;
-		while ((c = getopt(argc, argv, "hvi:s:d:k:f")) != -1) { // getopt как и обычно
+		while ((c = getopt(argc, argv, "hvi:s:d:k:fV")) != -1) { // getopt как и обычно
 			switch (c) {
 				case 'h': // помощь
 					pomosch(argv[0]);
@@ -70,6 +73,9 @@ int main(int argc, char **argv)
 						stranica.kolichestvo = 20; // костыль
 					}
 					else stranica.kolichestvo = atoi(optarg);
+					break;
+				case 'V': // verbose
+					stranica.verbose = true;
 					break;
 			}
 		}
