@@ -33,22 +33,39 @@ define('VKURL', 'https://vk.com/');
 define('APIVERSION', '5.69');
 // substr is because of one unnecessarily byte at the end
 define('APIKEY', substr(file_get_contents("conf/vkapikey"), 0, -1));
-define('VERSION', 'vkfeed2rss 0.4');
+define('VERSION', 'vkfeed2rss 0.4a2');
+
+// page types
 define('TGROUP', 1);
 define('TUSER', 2);
 
-// convert vk url (https://vk.com/apiclub) to domain (apiclub)
-//~ function vk_url_to_domain($url) {
-	
-//~ }
+// convert vk url (https://vk.com/apiclub) to vk domain (apiclub)
+function vk_path_from_url(string $url) {
+	// chinese code!!!
+	// ACHTUNG: goto used!
+	$tmp = parse_url($url);
+	$gotoused = 0;
+	re:
+	if (($tmp['scheme'] == 'http' or $tmp['scheme'] == 'https')
+	and $tmp['path'] != '/' and $tmp['path']) {
+		return substr($tmp['path'], 1);
+	} else {
+		$tmp = parse_url('https://' . $url); // simulate try
+		if ($gotoused >= 2) die("Bad URL");
+		elseif ($gotoused == 1)
+			$tmp = parse_url(VKURL . $url);
+		$gotoused++;
+		goto re;
+	}
+}
 
 // short api decoding
-function json_get_contents($str) {
+function json_get_contents(string $str) {
 	return json_decode(file_get_contents($str), true, 16, JSON_BIGINT_AS_STRING);
 }
 
 // resolve vk domain
-function vk_resolve($domain) {
+function vk_resolve(string $domain) {
 	// resolves type and id of domain
 	$tmp = json_get_contents(BASE . 'utils.resolveScreenName?screen_name=' . $domain);
 		
@@ -70,9 +87,26 @@ function vk_resolve($domain) {
 	);
 }
 
+function vk_item_parse(array $item) {
+	$ret = '<p>' . $item['text'] . '</p>';
+
+	//attachments: images
+	if (isset($item['attachments'])) {
+		foreach ($item['attachments'] as $attachment) {
+			if ($attachment['type'] == 'photo') {
+				$ret .= '<p><img src="' . $attachment['photo']['photo_604'] . '"></p>';
+			}
+		}
+	}
+
+	return $ret;
+}
+
 // parse and print the RSS feed
-function vk_parse($vk) {
+function vk_parse(array $vk) {
 	if ($vk == NULL) die("Unrecognized error");
+	
+	$infores = $vk['info']['response'][0];
 	
 	$xw = xmlwriter_open_memory();
 
@@ -91,14 +125,14 @@ function vk_parse($vk) {
 		// title
 		xmlwriter_start_element($xw, 'title');
 			if ($vk['type'] == TUSER)
-				xmlwriter_text($xw, $vk['info']['response'][0]['first_name'] . ' ' . $vk['info']['response'][0]['last_name']);
+				xmlwriter_text($xw, $infores['first_name'] . ' ' . $infores['last_name']);
 			elseif ($vk['type'] == TGROUP)
-				xmlwriter_text($xw, $vk['info']['response'][0]['name']);
+				xmlwriter_text($xw, $infores['name']);
 		xmlwriter_end_element($xw);
 		
 		// link
 		xmlwriter_start_element($xw, 'link');
-			xmlwriter_text($xw, VKURL . $vk['info']['response'][0]['screen_name']);
+			xmlwriter_text($xw, VKURL . $infores['screen_name']);
 		xmlwriter_end_element($xw);
 		
 		// description
@@ -106,9 +140,9 @@ function vk_parse($vk) {
 		//for group, its description
 		xmlwriter_start_element($xw, 'description');
 			if ($vk['type'] == TUSER)
-				xmlwriter_text($xw, $vk['info']['response'][0]['status']);
+				xmlwriter_text($xw, $infores['status']);
 			elseif ($vk['type'] == TGROUP)
-				xmlwriter_text($xw, $vk['info']['response'][0]['description']);
+				xmlwriter_text($xw, $infores['description']);
 		xmlwriter_end_element($xw);
 		
 		// generator
@@ -125,9 +159,9 @@ function vk_parse($vk) {
 		xmlwriter_start_element($xw, 'image');
 			xmlwriter_start_element($xw, 'url');
 				if ($vk['type'] == TUSER)
-					xmlwriter_text($xw, $vk['info']['response'][0]['photo_max_orig']);
+					xmlwriter_text($xw, $infores['photo_max_orig']);
 				elseif ($vk['type'] == TGROUP)
-					xmlwriter_text($xw, $vk['info']['response'][0]['photo_200']);
+					xmlwriter_text($xw, $infores['photo_200']);
 			xmlwriter_end_element($xw);
 		xmlwriter_end_element($xw);
 	
@@ -143,14 +177,14 @@ function vk_parse($vk) {
 			
 			//description
 			xmlwriter_start_element($xw, 'description');
-				$desc = $item['text'];
-				
-				//attachments: images
-				foreach ($item['attachments'] as $attachment) {
-					if ($attachment['type'] == 'photo') {
-						$desc .= '<img src="' . $attachment['photo']['photo_604'] . '">';
-					}
-				}
+				// handle a simple post
+				if ($item['text'] != '') 
+					$desc = vk_item_parse($item);
+				// handle a repost
+				elseif ($item['text'] == '' and isset($item['copy_history']))
+					$desc = vk_item_parse($item['copy_history'][0]);
+				// something gone wrong
+				else die("Unrecognized error on post parsing");
 				xmlwriter_text($xw, $desc);
 			xmlwriter_end_element($xw);
 			
@@ -161,7 +195,7 @@ function vk_parse($vk) {
 			
 			//link
 			xmlwriter_start_element($xw, 'link');
-				xmlwriter_text($xw, VKURL . $vk['info']['response'][0]['screen_name'] . '?w=wall-' . $vk['info']['response'][0]['id'] . '_' . $item['id']);
+				xmlwriter_text($xw, VKURL . $infores['screen_name'] . '?w=wall-' . $infores['id'] . '_' . $item['id']);
 			xmlwriter_end_element($xw);
 			
 			xmlwriter_end_element($xw);
@@ -187,8 +221,8 @@ function main() {
 	 * 	type can be TGROUP or TUSER
 	 * $vk stores all that will be needed for vk_parse()
 	 */
-	if (isset($_GET['url'])) // to be realized
-		die("Not realized");
+	if (isset($_GET['url'])) // detect domain from URL and work as bottom
+		$vk = vk_resolve(vk_path_from_url($_GET['url']));
 	elseif (isset($_GET['domain'])) // detect by domain
 		$vk = vk_resolve($_GET['domain']);
 	else
@@ -206,7 +240,12 @@ function main() {
 
 	// filter for wall.get function
 	if (isset($_GET['filter']))
-		$vk['filter'] = $_GET['filter'];
+		switch($_GET['filter']) {
+			case 'all':
+			case 'owner':
+			case 'others': $vk['filter'] = $_GET['filter']; break;
+			default: die("Only all, owner and others filters are supported");
+		}
 
 	// The feed generation is separated into 3 stages: info (information about feed), posts (posts in the feed), conversion (conversioning to RSS and printing)
 
@@ -216,19 +255,21 @@ function main() {
 	}
 	elseif ($vk['type'] == TGROUP)
 		$vk['info'] = json_get_contents(BASE . 'groups.getById?fields=description,photo_big,type&group_id=' . $vk['id'] . '&v=' . APIVERSION);
-
 	// Error handling
 	if (isset($vk['info']['error']))
 		die($vk['info']['error']['error_msg']);
 
 	if ($vk['type'] == TUSER or $vk['type'] == TGROUP) {
 		$req = BASE . 'wall.get';
+		
 		$req .= '?owner_id=';
 		if ($vk['type'] == TGROUP)
 			 $req .= '-';
 		$req .= $vk['id'];
+		
 		if (isset($vk['count']))
 			$req .= '&count=' . $vk['count'];
+
 		if (isset($vk['filter']))
 			$req .= '&filter=' . $vk['filter'];
 
@@ -246,8 +287,6 @@ function main() {
 	// Last step
 	vk_parse($vk);
 	
-	// debug
-	if (isset($_GET['debug'])) if ((int)$_GET['debug']) var_dump($vk);
 }
 
 main();
