@@ -21,23 +21,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-/*
- * Before reading the code I warn you that
- * there is a lot of monkey code
- * this is because the autor is noob
- * thank you
- */
-
 define('BASE', 'https://api.vk.com/method/');
 define('VKURL', 'https://vk.com/');
 define('APIVERSION', '5.69');
-// substr is because of one unnecessarily byte at the end
-define('APIKEY', substr(file_get_contents("conf/vkapikey"), 0, -1));
-define('VERSION', 'vkfeed2rss 0.4a2');
+define('VERSION', 'vkfeed2rss 0.5a1');
+define('RSSVERSION', '2.0');
 
-// page types
 define('TGROUP', 1);
 define('TUSER', 2);
+
+define('PPOST', 1);
+define('PREPOST', 2);
 
 // convert vk url (https://vk.com/apiclub) to vk domain (apiclub)
 function vk_path_from_url(string $url) {
@@ -64,229 +58,250 @@ function json_get_contents(string $str) {
 	return json_decode(file_get_contents($str), true, 16, JSON_BIGINT_AS_STRING);
 }
 
-// resolve vk domain
-function vk_resolve(string $domain) {
-	// resolves type and id of domain
-	$tmp = json_get_contents(BASE . 'utils.resolveScreenName?screen_name=' . $domain);
-		
-	if ($tmp['response'] == NULL)
-		die("Domain resolve error");
-	else switch($tmp['response']['type']) {
-		case 'user': $type = TUSER; break;
-		case 'group':
-		case 'event':
-		case 'page': $type = TGROUP; break;
-		default: die("Not supported");
-	}
+function config_get() {
+	// $config is an array with input settings
 
-	$id = $tmp['response']['object_id'];
-	
-	return array(
-		'id' => $id,
-		'type' => $type
-	);
-}
-
-function vk_item_parse(array $item) {
-	$ret = '<p>' . $item['text'] . '</p>';
-
-	//attachments: images
-	if (isset($item['attachments'])) {
-		foreach ($item['attachments'] as $attachment) {
-			if ($attachment['type'] == 'photo') {
-				$ret .= '<p><img src="' . $attachment['photo']['photo_604'] . '"></p>';
-			}
-		}
-	}
-
-	return $ret;
-}
-
-// parse and print the RSS feed
-function vk_parse(array $vk) {
-	if ($vk == NULL) die("Unrecognized error");
-	
-	$infores = $vk['info']['response'][0];
-	
-	$xw = xmlwriter_open_memory();
-
-	xmlwriter_set_indent($xw, true);
-	xmlwriter_start_document($xw, '1.0', 'UTF-8');
-	
-	xmlwriter_start_element($xw, 'rss');
-
-	xmlwriter_start_attribute($xw, 'version');
-		xmlwriter_text($xw, '2.0');
-	xmlwriter_end_attribute($xw);
-	
-	// main xml
-	xmlwriter_start_element($xw, 'channel');
-	
-		// title
-		xmlwriter_start_element($xw, 'title');
-			if ($vk['type'] == TUSER)
-				xmlwriter_text($xw, $infores['first_name'] . ' ' . $infores['last_name']);
-			elseif ($vk['type'] == TGROUP)
-				xmlwriter_text($xw, $infores['name']);
-		xmlwriter_end_element($xw);
-		
-		// link
-		xmlwriter_start_element($xw, 'link');
-			xmlwriter_text($xw, VKURL . $infores['screen_name']);
-		xmlwriter_end_element($xw);
-		
-		// description
-		//for user, its status
-		//for group, its description
-		xmlwriter_start_element($xw, 'description');
-			if ($vk['type'] == TUSER)
-				xmlwriter_text($xw, $infores['status']);
-			elseif ($vk['type'] == TGROUP)
-				xmlwriter_text($xw, $infores['description']);
-		xmlwriter_end_element($xw);
-		
-		// generator
-		xmlwriter_start_element($xw, 'generator');
-			xmlwriter_text($xw, VERSION);
-		xmlwriter_end_element($xw);
-		
-		// docs
-		xmlwriter_start_element($xw, 'docs');
-			xmlwriter_text($xw, 'http://www.rssboard.org/rss-specification');
-		xmlwriter_end_element($xw);
-		
-		// image
-		xmlwriter_start_element($xw, 'image');
-			xmlwriter_start_element($xw, 'url');
-				if ($vk['type'] == TUSER)
-					xmlwriter_text($xw, $infores['photo_max_orig']);
-				elseif ($vk['type'] == TGROUP)
-					xmlwriter_text($xw, $infores['photo_200']);
-			xmlwriter_end_element($xw);
-		xmlwriter_end_element($xw);
-	
-		// item
-		// the hardest thing!
-		foreach ($vk['posts']['response']['items'] as $item) {
-			xmlwriter_start_element($xw, 'item');
-			
-			//title
-			xmlwriter_start_element($xw, 'title');
-				xmlwriter_text($xw, (string)$item['id']);
-			xmlwriter_end_element($xw);
-			
-			//description
-			xmlwriter_start_element($xw, 'description');
-				// handle a simple post
-				if ($item['text'] != '') 
-					$desc = vk_item_parse($item);
-				// handle a repost
-				elseif ($item['text'] == '' and isset($item['copy_history']))
-					$desc = vk_item_parse($item['copy_history'][0]);
-				// something gone wrong
-				else die("Unrecognized error on post parsing");
-				xmlwriter_text($xw, $desc);
-			xmlwriter_end_element($xw);
-			
-			//pubDate
-			xmlwriter_start_element($xw, 'pubDate');
-				xmlwriter_text($xw, date(DATE_RSS, $item['date']));
-			xmlwriter_end_element($xw);
-			
-			//link
-			xmlwriter_start_element($xw, 'link');
-				xmlwriter_text($xw, VKURL . $infores['screen_name'] . '?w=wall-' . $infores['id'] . '_' . $item['id']);
-			xmlwriter_end_element($xw);
-			
-			xmlwriter_end_element($xw);
-		}
-	
-	xmlwriter_end_element($xw);
-	
-	xmlwriter_end_element($xw);
-	
-	xmlwriter_end_document($xw);
-	
-	echo xmlwriter_output_memory($xw);
-	
-	unset($xw);
-}
-
-function main() {
 	// some functions needs vk api key
-	if (!APIKEY) die("No api key");
+	// substr is because of one unnecessarily byte at the end
+	$config['apikey'] = substr(file_get_contents("conf/vkapikey"), 0, -1);
+	if (!APIKEY)
+		die("No api key");
 
-	/*
-	 * $vk is an array with page's ID and type (group, user)
-	 * 	type can be TGROUP or TUSER
-	 * $vk stores all that will be needed for vk_parse()
-	 */
-	if (isset($_GET['url'])) // detect domain from URL and work as bottom
-		$vk = vk_resolve(vk_path_from_url($_GET['url']));
-	elseif (isset($_GET['domain'])) // detect by domain
-		$vk = vk_resolve($_GET['domain']);
+	// path
+	if (isset($_GET['path']))
+		$config['path'] = $_GET['path'];
+	elseif (isset($_GET['url']))
+		$config['path'] = vk_path_from_url($_GET['url']);
 	else
-		die("url or domain has to be specified");
+		die("url or path has to be specified");
 
-	// $vk can be extended with some other variables:
-
-	// count of posts in future feed, maximum 100, minimum 1, on 0 default value of vk will be used
+	// count
 	if (isset($_GET['count'])) {
 		if ((int)$_GET['count'] < 0 or (int)$_GET['count'] > 100)
-			$vk['count'] = 100;
+			die("Count limit is from 0 to 100");
 		else
-			$vk['count'] = (int)$_GET['count'];
+			$config['count'] = (int)$_GET['count'];
 	}
-
-	// filter for wall.get function
-	if (isset($_GET['filter']))
+	
+	// filter
+	if (isset($_GET['filter'])) {
 		switch($_GET['filter']) {
 			case 'all':
 			case 'owner':
-			case 'others': $vk['filter'] = $_GET['filter']; break;
+			case 'others': $config['filter'] = $_GET['filter']; break;
 			default: die("Only all, owner and others filters are supported");
 		}
-
-	// The feed generation is separated into 3 stages: info (information about feed), posts (posts in the feed), conversion (conversioning to RSS and printing)
-
-	// User and group pages have different functions for info
-	if ($vk['type'] == TUSER) {
-		$vk['info'] = json_get_contents(BASE . 'users.get?fields=status,photo_max_orig,screen_name&user_ids=' . $vk['id'] . '&v=' . APIVERSION);
-	}
-	elseif ($vk['type'] == TGROUP)
-		$vk['info'] = json_get_contents(BASE . 'groups.getById?fields=description,photo_big,type&group_id=' . $vk['id'] . '&v=' . APIVERSION);
-	// Error handling
-	if (isset($vk['info']['error']))
-		die($vk['info']['error']['error_msg']);
-
-	if ($vk['type'] == TUSER or $vk['type'] == TGROUP) {
-		$req = BASE . 'wall.get';
-		
-		$req .= '?owner_id=';
-		if ($vk['type'] == TGROUP)
-			 $req .= '-';
-		$req .= $vk['id'];
-		
-		if (isset($vk['count']))
-			$req .= '&count=' . $vk['count'];
-
-		if (isset($vk['filter']))
-			$req .= '&filter=' . $vk['filter'];
-
-		$req .= '&access_token=' . APIKEY;
-		
-		$req .= '&v=' . APIVERSION;
-		
-		$vk['posts'] = json_get_contents($req);
-
-		// Error handling
-		if (isset($vk['posts']['error']))
-			die($vk['posts']['error']['error_msg']);
 	}
 	
-	// Last step
-	vk_parse($vk);
+	// resolving page's id and type
+	$tmp = json_get_contents(BASE . 'utils.resolveScreenName?screen_name=' . $config['path']);
+	if ($tmp['response'] == NULL)
+		die("Page resolve error");
+	else {
+		// id
+		$config['id'] = $tmp['response']['object_id'];
+		// type
+		switch($tmp['response']['type']) {
+			case 'user': $config['type'] = TUSER; break;
+			case 'group':
+			case 'event':
+			case 'page': $config['type'] = TGROUP; break;
+			default: die("Only groups and users are supported");
+		}
+	}
 	
+	return $config;
+}
+
+function load_info(array $config) {
+	if ($config['type'] == TGROUP)
+		$ret = json_get_contents(BASE . 'groups.getById?fields=description,photo_big,type&group_id=' . $config['id'] . '&v=' . APIVERSION);
+	elseif ($config['type'] == TUSER)
+		$ret = json_get_contents(BASE . 'users.get?fields=status,photo_max_orig,screen_name&user_ids=' . $config['id'] . '&v=' . APIVERSION);
+	if (isset($ret['error']))
+		die($ret['error']['error_msg']);
+		
+	return $ret;
+}
+
+function load_posts(array $config) {
+	// make a request
+	$req = BASE;
+	//owner_id
+	$req .= 'wall.get?owner_id=';
+	if ($config['type'] == TGROUP)
+		$req .= '-';
+	$req .= $config['id'];
+	//count and filter
+	if (isset($config['count']))
+		$req .= '&count=' . (string)$config['count'];
+	if (isset($config['filter']))
+		$req .= '&filter=' . (string)$config['filter'];
+	//access_token
+	$req .= '&access_token=' . $config['apikey'];
+	// api version
+	$req .= '&v=' . APIVERSION;
+	
+	//do the request
+	$ret = json_get_contents($req);
+	if (isset($ret['error']))
+		die($ret['error']['error_msg']);
+	else
+		return $ret;
+}
+
+// processes raw data
+function process_raw(array $raw_info, array $raw_posts, array $config) {
+	function item_parse(array $item) {
+		$ret = '<p>' . $item['text'] . '</p>';
+
+		//attachments: images
+		if (isset($item['attachments'])) {
+			foreach ($item['attachments'] as $attachment) {
+				if ($attachment['type'] == 'photo') {
+					$ret .= '<p><img src="' . $attachment['photo']['photo_604'] . '"></p>';
+				}
+			}
+		}
+
+		return $ret;
+	}
+	
+	$rss = array();
+	$infores = $raw_info['response'][0];
+	
+	// title
+	if ($config['type'] == TGROUP)
+		$rss['title'] = $infores['name'];
+	elseif ($config['type'] == TUSER)
+		$rss['title'] = $infores['first_name'] . ' ' . $infores['last_name'];
+
+	// link
+	$rss['link'] = VKURL . $infores['screen_name'];
+
+	// description
+	//for user, its status
+	//for group, its description
+	if ($config['type'] == TUSER)
+		$rss['description'] = $infores['status'];
+	elseif ($config['type'] == TGROUP)
+		$rss['description'] = $infores['description'];
+		
+	// generator
+	$rss['generator'] = VERSION;
+
+	// docs
+	$rss['docs'] = 'http://www.rssboard.org/rss-specification';
+
+	// image
+	if ($config['type'] == TGROUP)
+		$rss['image']['url'] = $infores['photo_200'];
+	elseif ($config['type'] == TUSER)
+		$rss['image']['url'] = $infores['photo_max_orig'];
+
+	// item
+	// the hardest
+	foreach ($raw_posts['response']['items'] as $i => $item) {
+		// description
+		// handle a repost (just post is lower)
+		if (isset($item['copy_history'])) {
+			$desc = item_parse($item['copy_history'][0]);
+			$rss['post'][$i]['type'] = PREPOST;
+		}
+		// a post
+		else {
+			$desc = item_parse($item);
+			$rss['post'][$i]['type'] = PPOST;
+		}
+		$rss['post'][$i]['description'] = $desc;
+		
+		// title
+		// it will be id of post
+		if ($rss['post'][$i]['type'] == PPOST)
+			$rss['post'][$i]['title'] = 'Post ' . $item['id'];
+		elseif ($rss['post'][$i]['type'] == PREPOST)
+			$rss['post'][$i]['title'] = 'Repost ' . $item['id'];
+		
+		// pubDate
+		$rss['post'][$i]['pubDate'] = date(DATE_RSS, $item['date']);
+		
+		// link
+		$rss['post'][$i]['link'] = VKURL . $infores['screen_name'] . '?w=wall-' . $infores['id'] . '_' . $item['id'];
+	}
+
+	return $rss;
+}
+
+function rss_output(array $rss) {
+	$xw = new XMLWriter();
+	$xw->openMemory();
+	$xw->setIndent(true);
+	$xw->startDocument('1.0', 'UTF-8');
+		$xw->startElement('rss');
+			$xw->startAttribute('version');
+				$xw->text(RSSVERSION);
+			$xw->endAttribute();
+			$xw->startElement('channel');
+				$xw->startElement('title');
+					$xw->text($rss['title']);
+				$xw->endElement();
+				$xw->startElement('link');
+					$xw->text($rss['link']);
+				$xw->endElement();
+				$xw->startElement('description');
+					$xw->text($rss['description']);
+				$xw->endElement();
+				$xw->startElement('generator');
+					$xw->text($rss['generator']);
+				$xw->endElement();
+				$xw->startElement('docs');
+					$xw->text($rss['docs']);
+				$xw->endElement();
+				$xw->startElement('image');
+					$xw->startElement('url');
+						$xw->text($rss['image']['url']);
+					$xw->endElement();
+				$xw->endElement();
+				foreach ($rss['post'] as $i => $item) {
+					$xw->startElement('item');
+						$xw->startElement('title');
+							$xw->text($rss['post'][$i]['title']);
+						$xw->endElement();
+						$xw->startElement('description');
+							$xw->text($rss['post'][$i]['description']);
+						$xw->endElement();
+						$xw->startElement('pubDate');
+							$xw->text($rss['post'][$i]['pubDate']);
+						$xw->endElement();
+						$xw->startElement('link');
+							$xw->text($rss['post'][$i]['link']);
+						$xw->endElement();
+					$xw->endElement();
+				}
+			$xw->endElement();
+		$xw->endElement();
+	$xw->endDocument();
+	echo $xw->outputMemory();
+}
+
+function main() {
+	// configuration
+	$config = config_get();
+
+	// raw page info and posts
+	$raw_info = load_info($config);
+
+	if ($raw_info['response'][0]['is_closed'] == true)
+		die("The group is closed");
+
+	$raw_posts = load_posts($config);
+
+	// processing raw data
+	// $rss is a RSS-style array
+	$rss = process_raw($raw_info, $raw_posts, $config);
+
+	// outputting processed data
+	rss_output($rss);
 }
 
 main();
