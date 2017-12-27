@@ -24,7 +24,7 @@ SOFTWARE.
 define('BASE', 'https://api.vk.com/method/');
 define('VKURL', 'https://vk.com/');
 define('APIVERSION', '5.69');
-define('VERSION', 'vkfeed2rss 0.5a1');
+define('VERSION', 'vkfeed2rss 0.5');
 define('RSSVERSION', '2.0');
 
 define('TGROUP', 1);
@@ -33,7 +33,12 @@ define('TUSER', 2);
 define('PPOST', 1);
 define('PREPOST', 2);
 
-// convert vk url (https://vk.com/apiclub) to vk domain (apiclub)
+/* convert vk url (https://vk.com/apiclub) to vk domain (apiclub)
+ * Supported url forms:
+ * "https://vk.com/id1"
+ * "vk.com/id1"
+ * "id1" (use of path is recommended)
+ */
 function vk_path_from_url(string $url) {
 	// chinese code!!!
 	// ACHTUNG: goto used!
@@ -53,11 +58,12 @@ function vk_path_from_url(string $url) {
 	}
 }
 
-// short api decoding
+// short api calling&decoding
 function json_get_contents(string $str) {
 	return json_decode(file_get_contents($str), true, 16, JSON_BIGINT_AS_STRING);
 }
 
+// get some configuration variables
 function config_get() {
 	// $config is an array with input settings
 
@@ -113,6 +119,7 @@ function config_get() {
 	return $config;
 }
 
+// load info about a page
 function load_info(array $config) {
 	if ($config['type'] == TGROUP)
 		$ret = json_get_contents(BASE . 'groups.getById?fields=description,photo_big,type&group_id=' . $config['id'] . '&v=' . APIVERSION);
@@ -124,6 +131,7 @@ function load_info(array $config) {
 	return $ret;
 }
 
+// load posts from a page
 function load_posts(array $config) {
 	// make a request
 	$req = BASE;
@@ -152,6 +160,7 @@ function load_posts(array $config) {
 
 // processes raw data
 function process_raw(array $raw_info, array $raw_posts, array $config) {
+	// parse item
 	function item_parse(array $item) {
 		$ret = '<p>' . $item['text'] . '</p>';
 
@@ -232,6 +241,7 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 	return $rss;
 }
 
+// output an rss array
 function rss_output(array $rss) {
 	$xw = new XMLWriter();
 	$xw->openMemory();
@@ -291,6 +301,8 @@ function main() {
 	// raw page info and posts
 	$raw_info = load_info($config);
 
+	// if group is closed
+	// other errors will be handled otherwhere
 	if ($raw_info['response'][0]['is_closed'] == true)
 		die("The group is closed");
 
