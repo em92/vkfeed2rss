@@ -24,7 +24,7 @@ SOFTWARE.
 define('BASE', 'https://api.vk.com/method/');
 define('VKURL', 'https://vk.com/');
 define('APIVERSION', '5.69');
-define('VERSION', 'vkfeed2rss 0.5');
+define('VERSION', 'vkfeed2rss 0.5.0');
 define('RSSVERSION', '2.0');
 
 define('TGROUP', 1);
@@ -127,8 +127,8 @@ function load_info(array $config) {
 		$ret = json_get_contents(BASE . 'users.get?fields=status,photo_max_orig,screen_name&user_ids=' . $config['id'] . '&v=' . APIVERSION);
 	if (isset($ret['error']))
 		die($ret['error']['error_msg']);
-		
-	return $ret;
+	else
+		return $ret;
 }
 
 // load posts from a page
@@ -144,7 +144,7 @@ function load_posts(array $config) {
 	if (isset($config['count']))
 		$req .= '&count=' . (string)$config['count'];
 	if (isset($config['filter']))
-		$req .= '&filter=' . (string)$config['filter'];
+		$req .= '&filter=' . $config['filter'];
 	//access_token
 	$req .= '&access_token=' . $config['apikey'];
 	// api version
@@ -162,14 +162,37 @@ function load_posts(array $config) {
 function process_raw(array $raw_info, array $raw_posts, array $config) {
 	// parse item
 	function item_parse(array $item) {
-		$ret = '<p>' . $item['text'] . '</p>';
+		// change all linebreak to HTML compatible <br />
+		$ret = nl2br($item['text']);		
 
-		//attachments: images
+		// attachments
 		if (isset($item['attachments'])) {
+			// level 1
 			foreach ($item['attachments'] as $attachment) {
-				if ($attachment['type'] == 'photo') {
-					$ret .= '<p><img src="' . $attachment['photo']['photo_604'] . '"></p>';
+				// VK videos
+				if ($attachment['type'] == 'video') {
+					$vurl = VKURL . 'video' . (string)$attachment['video']['owner_id'] . '_' . (string)$attachment['video']['id'];
+					$vimgref = '<img src="' . $attachment['video']['photo_320'] . '" alt="' . $attachment['video']['title'] . '">';
+					$ret .= "\n" . '<p><a href="' . $vurl . '">' . $vimgref . '</a></p>';
 				}
+				elseif ($attachment['type'] == 'audio') {
+					$ret .= "\n" . '<p><a href="' . $attachment['audio']['url'] . '">';
+					$ret .= $attachment['audio']['artist'] . ' - ' . $attachment['audio']['title'];
+					$ret .= '</a></p>';
+				}
+				// any doc apart of gif
+				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] != 'gif')
+					$ret .= "\n" . '<p><a href="' . $attachment['doc']['url'] . '">' . $attachment['doc']['title'] . '</a></p>';
+			}
+			// level 2
+			foreach ($item['attachments'] as $attachment) {
+				// JPEG, PNG photos
+				// GIF in vk is a document, so, not handled as photo
+				if ($attachment['type'] == 'photo')
+					$ret .= "\n" . '<p><img src="' . $attachment['photo']['photo_604'] . '"></p>';
+				// GIF docs
+				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] == 'gif')
+					$ret .= "\n" . '<p><img src="' . $attachment['doc']['url'] . '"></p>';
 			}
 		}
 
@@ -189,8 +212,8 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 	$rss['link'] = VKURL . $infores['screen_name'];
 
 	// description
+	//for group, its description used
 	//for user, its status
-	//for group, its description
 	if ($config['type'] == TUSER)
 		$rss['description'] = $infores['status'];
 	elseif ($config['type'] == TGROUP)
@@ -212,7 +235,7 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 	// the hardest
 	foreach ($raw_posts['response']['items'] as $i => $item) {
 		// description
-		// handle a repost (just post is lower)
+		// handle a repost (simple post is lower)
 		if (isset($item['copy_history'])) {
 			$desc = item_parse($item['copy_history'][0]);
 			$rss['post'][$i]['type'] = PREPOST;
