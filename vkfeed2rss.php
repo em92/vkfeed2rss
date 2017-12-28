@@ -21,10 +21,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+header('Content-Type: application/xhtml+xml; charset=utf-8');
+
 define('BASE', 'https://api.vk.com/method/');
 define('VKURL', 'https://vk.com/');
 define('APIVERSION', '5.69');
-define('VERSION', 'vkfeed2rss 0.5.0');
+define('VERSION', 'vkfeed2rss 0.5.1');
 define('RSSVERSION', '2.0');
 
 define('TGROUP', 1);
@@ -49,7 +51,7 @@ function vk_path_from_url(string $url) {
 	and $tmp['path'] != '/' and $tmp['path']) {
 		return substr($tmp['path'], 1);
 	} else {
-		$tmp = parse_url('https://' . $url); // simulate try
+		$tmp = parse_url("https://{$url}"); // simulate try
 		if ($gotoused >= 2) die("Bad URL");
 		elseif ($gotoused == 1)
 			$tmp = parse_url(VKURL . $url);
@@ -65,8 +67,6 @@ function json_get_contents(string $str) {
 
 // get some configuration variables
 function config_get() {
-	// $config is an array with input settings
-
 	// some functions needs vk api key
 	// substr is because of one unnecessarily byte at the end
 	$config['apikey'] = substr(file_get_contents("conf/vkapikey"), 0, -1);
@@ -127,6 +127,8 @@ function load_info(array $config) {
 		$ret = json_get_contents(BASE . 'users.get?fields=status,photo_max_orig,screen_name&user_ids=' . $config['id'] . '&v=' . APIVERSION);
 	if (isset($ret['error']))
 		die($ret['error']['error_msg']);
+	elseif ($ret['response'][0]['is_closed'] == true)
+		die("The group is closed");
 	else
 		return $ret;
 }
@@ -160,7 +162,7 @@ function load_posts(array $config) {
 
 // processes raw data
 function process_raw(array $raw_info, array $raw_posts, array $config) {
-	// parse item
+	// parse vk item
 	function item_parse(array $item) {
 		// change all linebreak to HTML compatible <br />
 		$ret = nl2br($item['text']);		
@@ -171,28 +173,27 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 			foreach ($item['attachments'] as $attachment) {
 				// VK videos
 				if ($attachment['type'] == 'video') {
-					$vurl = VKURL . 'video' . (string)$attachment['video']['owner_id'] . '_' . (string)$attachment['video']['id'];
-					$vimgref = '<img src="' . $attachment['video']['photo_320'] . '" alt="' . $attachment['video']['title'] . '">';
-					$ret .= "\n" . '<p><a href="' . $vurl . '">' . $vimgref . '</a></p>';
-				}
-				elseif ($attachment['type'] == 'audio') {
-					$ret .= "\n" . '<p><a href="' . $attachment['audio']['url'] . '">';
-					$ret .= $attachment['audio']['artist'] . ' - ' . $attachment['audio']['title'];
-					$ret .= '</a></p>';
-				}
+					$VKURL = VKURL;
+					$ret .= "\n<p><a href='{$VKURL}video{$attachment['video']['owner_id']}_{$attachment['video']['id']}'><img src='{$attachment['video']['photo_320']}' alt='{$attachment['video']['title']}'></a></p>";
+				} elseif ($attachment['type'] == 'audio')
+					// $attachment['audio']['url'] будет: https://vk.com/mp3/audio_api_unavailable.mp3
+					$ret .= "\n<p><a href='{$attachment['audio']['url']}'>{$attachment['audio']['artist']} - {$attachment['audio']['title']}</a></p>";
 				// any doc apart of gif
 				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] != 'gif')
-					$ret .= "\n" . '<p><a href="' . $attachment['doc']['url'] . '">' . $attachment['doc']['title'] . '</a></p>';
+					$ret .= "\n<p><a href='{$attachment['doc']['url']}'>{$attachment['doc']['title']}</a></p>";
 			}
 			// level 2
 			foreach ($item['attachments'] as $attachment) {
 				// JPEG, PNG photos
 				// GIF in vk is a document, so, not handled as photo
 				if ($attachment['type'] == 'photo')
-					$ret .= "\n" . '<p><img src="' . $attachment['photo']['photo_604'] . '"></p>';
+					$ret .= "\n<p><img src='{$attachment['photo']['photo_604']}'></p>";
 				// GIF docs
 				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] == 'gif')
-					$ret .= "\n" . '<p><img src="' . $attachment['doc']['url'] . '"></p>';
+					$ret .= "\n<p><img src='{$attachment['doc']['url']}'></p>";
+				// links
+				elseif ($attachment['type'] == 'link')
+					$ret .= "\n<p><a href='{$attachment['link']['url']}'><img src='{$attachment['link']['photo']['photo_604']}' alt='{$attachment['link']['title']}'></a></p>";
 			}
 		}
 
@@ -206,7 +207,7 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 	if ($config['type'] == TGROUP)
 		$rss['title'] = $infores['name'];
 	elseif ($config['type'] == TUSER)
-		$rss['title'] = $infores['first_name'] . ' ' . $infores['last_name'];
+		$rss['title'] = "{$infores['first_name']} {$infores['last_name']}";
 
 	// link
 	$rss['link'] = VKURL . $infores['screen_name'];
@@ -260,6 +261,10 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 		// link
 		$rss['post'][$i]['link'] = VKURL . $infores['screen_name'] . '?w=wall-' . $infores['id'] . '_' . $item['id'];
 	}
+	
+	// pubDate
+	// for this, the pubDate of [0]'s post is used
+	$rss['pubDate'] = $rss['post'][0]['pubDate'];
 
 	return $rss;
 }
@@ -284,6 +289,9 @@ function rss_output(array $rss) {
 				$xw->startElement('description');
 					$xw->text($rss['description']);
 				$xw->endElement();
+				$xw->startElement('pubDate');
+					$xw->text($rss['pubDate']);
+				$xw->endElement();
 				$xw->startElement('generator');
 					$xw->text($rss['generator']);
 				$xw->endElement();
@@ -295,19 +303,19 @@ function rss_output(array $rss) {
 						$xw->text($rss['image']['url']);
 					$xw->endElement();
 				$xw->endElement();
-				foreach ($rss['post'] as $i => $item) {
+				foreach ($rss['post'] as $item) {
 					$xw->startElement('item');
 						$xw->startElement('title');
-							$xw->text($rss['post'][$i]['title']);
+							$xw->text($item['title']);
 						$xw->endElement();
 						$xw->startElement('description');
-							$xw->text($rss['post'][$i]['description']);
+							$xw->text($item['description']);
 						$xw->endElement();
 						$xw->startElement('pubDate');
-							$xw->text($rss['post'][$i]['pubDate']);
+							$xw->text($item['pubDate']);
 						$xw->endElement();
 						$xw->startElement('link');
-							$xw->text($rss['post'][$i]['link']);
+							$xw->text($item['link']);
 						$xw->endElement();
 					$xw->endElement();
 				}
@@ -317,27 +325,19 @@ function rss_output(array $rss) {
 	echo $xw->outputMemory();
 }
 
-function main() {
-	// configuration
-	$config = config_get();
+// start read from here
 
-	// raw page info and posts
-	$raw_info = load_info($config);
+// configuration
+$config = config_get();
 
-	// if group is closed
-	// other errors will be handled otherwhere
-	if ($raw_info['response'][0]['is_closed'] == true)
-		die("The group is closed");
+// raw page info and posts
+$raw_info = load_info($config);
+$raw_posts = load_posts($config);
 
-	$raw_posts = load_posts($config);
+// processing raw data
+// $rss is a RSS-style array
+$rss = process_raw($raw_info, $raw_posts, $config);
 
-	// processing raw data
-	// $rss is a RSS-style array
-	$rss = process_raw($raw_info, $raw_posts, $config);
-
-	// outputting processed data
-	rss_output($rss);
-}
-
-main();
+// outputting processed data
+rss_output($rss);
 ?>
