@@ -21,19 +21,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-header('Content-Type: application/xhtml+xml; charset=utf-8');
-
 define('BASE', 'https://api.vk.com/method/');
 define('VKURL', 'https://vk.com/');
 define('APIVERSION', '5.69');
-define('VERSION', 'vkfeed2rss 0.5.1');
+define('VERSION', 'vkfeed2rss 0.5.2-dev');
 define('RSSVERSION', '2.0');
 
+// page type
 define('TGROUP', 1);
 define('TUSER', 2);
 
+// post type
 define('PPOST', 1);
 define('PREPOST', 2);
+
+// call constants from strings:
+// define('ANIMAL','turtles'); $constant='constant'; echo "I like {$constant('ANIMAL')}";
+$constant = 'constant';
 
 /* convert vk url (https://vk.com/apiclub) to vk domain (apiclub)
  * Supported url forms:
@@ -68,9 +72,9 @@ function json_get_contents(string $str) {
 // get some configuration variables
 function config_get() {
 	// some functions needs vk api key
-	// substr is because of one unnecessarily byte at the end
-	$config['apikey'] = substr(file_get_contents("conf/vkapikey"), 0, -1);
-	if (!APIKEY)
+	$tmp = json_get_contents("conf/vkfeed2rss.json");
+	$config['apikey'] = $tmp['apikey'];
+	if (!$config['apikey']) // if no apikey or file not found
 		die("No api key");
 
 	// path
@@ -100,7 +104,7 @@ function config_get() {
 	}
 	
 	// resolving page's id and type
-	$tmp = json_get_contents(BASE . 'utils.resolveScreenName?screen_name=' . $config['path']);
+	$tmp = json_get_contents("{$GLOBALS['constant']('BASE')}utils.resolveScreenName?screen_name={$config['path']}");
 	if ($tmp['response'] == NULL)
 		die("Page resolve error");
 	else {
@@ -122,9 +126,9 @@ function config_get() {
 // load info about a page
 function load_info(array $config) {
 	if ($config['type'] == TGROUP)
-		$ret = json_get_contents(BASE . 'groups.getById?fields=description,photo_big,type&group_id=' . $config['id'] . '&v=' . APIVERSION);
+		$ret = json_get_contents("{$GLOBALS['constant']('BASE')}groups.getById?fields=description,photo_big,type&group_id={$config['id']}&v={$GLOBALS['constant']('APIVERSION')}");
 	elseif ($config['type'] == TUSER)
-		$ret = json_get_contents(BASE . 'users.get?fields=status,photo_max_orig,screen_name&user_ids=' . $config['id'] . '&v=' . APIVERSION);
+		$ret = json_get_contents("{$GLOBALS['constant']('BASE')}users.get?fields=status,photo_max_orig,screen_name&user_ids={$config['id']}&v={$GLOBALS['constant']('APIVERSION')}");
 	if (isset($ret['error']))
 		die($ret['error']['error_msg']);
 	elseif ($ret['response'][0]['is_closed'] == true)
@@ -136,9 +140,8 @@ function load_info(array $config) {
 // load posts from a page
 function load_posts(array $config) {
 	// make a request
-	$req = BASE;
-	//owner_id
-	$req .= 'wall.get?owner_id=';
+	$req = "{$GLOBALS['constant']('BASE')}wall.get?owner_id=";
+	// for groups minus is to be concatenated
 	if ($config['type'] == TGROUP)
 		$req .= '-';
 	$req .= $config['id'];
@@ -146,11 +149,11 @@ function load_posts(array $config) {
 	if (isset($config['count']))
 		$req .= '&count=' . (string)$config['count'];
 	if (isset($config['filter']))
-		$req .= '&filter=' . $config['filter'];
+		$req .= "&filter={$config['filter']}";
 	//access_token
-	$req .= '&access_token=' . $config['apikey'];
+	$req .= "&access_token={$config['apikey']}";
 	// api version
-	$req .= '&v=' . APIVERSION;
+	$req .= "&v={$GLOBALS['constant']('APIVERSION')}";
 	
 	//do the request
 	$ret = json_get_contents($req);
@@ -172,10 +175,9 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 			// level 1
 			foreach ($item['attachments'] as $attachment) {
 				// VK videos
-				if ($attachment['type'] == 'video') {
-					$VKURL = VKURL;
-					$ret .= "\n<p><a href='{$VKURL}video{$attachment['video']['owner_id']}_{$attachment['video']['id']}'><img src='{$attachment['video']['photo_320']}' alt='{$attachment['video']['title']}'></a></p>";
-				} elseif ($attachment['type'] == 'audio')
+				if ($attachment['type'] == 'video')
+					$ret .= "\n<p><a href='{$GLOBALS['constant']('VKURL')}video{$attachment['video']['owner_id']}_{$attachment['video']['id']}'><img src='{$attachment['video']['photo_320']}' alt='{$attachment['video']['title']}'></a></p>";
+				elseif ($attachment['type'] == 'audio')
 					// $attachment['audio']['url'] будет: https://vk.com/mp3/audio_api_unavailable.mp3
 					$ret .= "\n<p><a href='{$attachment['audio']['url']}'>{$attachment['audio']['artist']} - {$attachment['audio']['title']}</a></p>";
 				// any doc apart of gif
@@ -210,7 +212,7 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 		$rss['title'] = "{$infores['first_name']} {$infores['last_name']}";
 
 	// link
-	$rss['link'] = VKURL . $infores['screen_name'];
+	$rss['link'] = "{$GLOBALS['constant']('VKURL')}{$infores['screen_name']}";
 
 	// description
 	//for group, its description used
@@ -251,15 +253,15 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 		// title
 		// it will be id of post
 		if ($rss['post'][$i]['type'] == PPOST)
-			$rss['post'][$i]['title'] = 'Post ' . $item['id'];
+			$rss['post'][$i]['title'] = "Post {$item['id']}";
 		elseif ($rss['post'][$i]['type'] == PREPOST)
-			$rss['post'][$i]['title'] = 'Repost ' . $item['id'];
+			$rss['post'][$i]['title'] = "Repost {$item['id']}";
 		
 		// pubDate
 		$rss['post'][$i]['pubDate'] = date(DATE_RSS, $item['date']);
 		
 		// link
-		$rss['post'][$i]['link'] = VKURL . $infores['screen_name'] . '?w=wall-' . $infores['id'] . '_' . $item['id'];
+		$rss['post'][$i]['link'] = "{$GLOBALS['constant']('VKURL')}{$infores['screen_name']}?w=wall-{$infores['id']}_{$item['id']}";
 	}
 	
 	// pubDate
@@ -337,6 +339,8 @@ $raw_posts = load_posts($config);
 // processing raw data
 // $rss is a RSS-style array
 $rss = process_raw($raw_info, $raw_posts, $config);
+
+header('Content-Type: application/xhtml+xml; charset=utf-8');
 
 // outputting processed data
 rss_output($rss);
