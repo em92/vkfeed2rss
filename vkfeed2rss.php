@@ -24,7 +24,7 @@ SOFTWARE.
 define('BASE', 'https://api.vk.com/method/');
 define('VKURL', 'https://vk.com/');
 define('APIVERSION', '5.69');
-define('VERSION', 'vkfeed2rss 0.5.2-dev');
+define('VERSION', 'vkfeed2rss v0.5.3');
 define('RSSVERSION', '2.0');
 
 // page type
@@ -39,29 +39,28 @@ define('PREPOST', 2);
 // define('ANIMAL','turtles'); $constant='constant'; echo "I like {$constant('ANIMAL')}";
 $constant = 'constant';
 
-/* convert vk url (https://vk.com/apiclub) to vk domain (apiclub)
+/* 
+ * convert vk url (https://vk.com/apiclub) to vk domain (apiclub)
  * Supported url forms:
  * "https://vk.com/id1"
  * "vk.com/id1"
  * "id1" (use of path is recommended)
  */
 function vk_path_from_url(string $url) {
-	// chinese code!!!
-	// ACHTUNG: goto used!
-	$tmp = parse_url($url);
-	$gotoused = 0;
-	re:
-	if (($tmp['scheme'] == 'http' or $tmp['scheme'] == 'https')
-	and $tmp['path'] != '/' and $tmp['path']) {
-		return substr($tmp['path'], 1);
-	} else {
-		$tmp = parse_url("https://{$url}"); // simulate try
-		if ($gotoused >= 2) die("Bad URL");
-		elseif ($gotoused == 1)
-			$tmp = parse_url(VKURL . $url);
-		$gotoused++;
-		goto re;
+	for ($i = 0; $i < 3; $i++) { // try to parse for 3 tries
+		switch ($i) { // tries
+			case 0: $tmp = parse_url($url); break;
+			case 1: $tmp = parse_url("https://{$url}"); break;
+			case 2: $tmp = parse_url(VKURL . $url); break;
+		}
+		
+		if (($tmp['scheme'] == 'http' or $tmp['scheme'] == 'https') // check
+		and $tmp['path'] != '/' and $tmp['path'])
+			return substr($tmp['path'], 1);
 	}
+	
+	// if the function can't parse the url, die
+	die("Bad url");
 }
 
 // short api calling&decoding
@@ -145,6 +144,8 @@ function load_posts(array $config) {
 	if ($config['type'] == TGROUP)
 		$req .= '-';
 	$req .= $config['id'];
+	// we need extended info
+	$req .= '&extended=1';
 	//count and filter
 	if (isset($config['count']))
 		$req .= '&count=' . (string)$config['count'];
@@ -165,7 +166,7 @@ function load_posts(array $config) {
 
 // processes raw data
 function process_raw(array $raw_info, array $raw_posts, array $config) {
-	// parse vk item
+	// parse vk item's <description>
 	function item_parse(array $item) {
 		// change all linebreak to HTML compatible <br />
 		$ret = nl2br($item['text']);		
@@ -263,10 +264,6 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 		// link
 		$rss['post'][$i]['link'] = "{$GLOBALS['constant']('VKURL')}{$infores['screen_name']}?w=wall-{$infores['id']}_{$item['id']}";
 	}
-	
-	// pubDate
-	// for this, the pubDate of [0]'s post is used
-	$rss['pubDate'] = $rss['post'][0]['pubDate'];
 
 	return $rss;
 }
@@ -283,16 +280,13 @@ function rss_output(array $rss) {
 			$xw->endAttribute();
 			$xw->startElement('channel');
 				$xw->startElement('title');
-					$xw->text($rss['title']);
+					$xw->text(nl2br($rss['title']));
 				$xw->endElement();
 				$xw->startElement('link');
 					$xw->text($rss['link']);
 				$xw->endElement();
 				$xw->startElement('description');
 					$xw->text($rss['description']);
-				$xw->endElement();
-				$xw->startElement('pubDate');
-					$xw->text($rss['pubDate']);
 				$xw->endElement();
 				$xw->startElement('generator');
 					$xw->text($rss['generator']);
@@ -324,7 +318,7 @@ function rss_output(array $rss) {
 			$xw->endElement();
 		$xw->endElement();
 	$xw->endDocument();
-	echo $xw->outputMemory();
+	print $xw->outputMemory();
 }
 
 // start read from here
