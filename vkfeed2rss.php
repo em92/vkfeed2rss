@@ -24,22 +24,22 @@ SOFTWARE.
 define('BASE', 'https://api.vk.com/method/');
 define('VKURL', 'https://vk.com/');
 define('APIVERSION', '5.69');
-define('VERSION', 'vkfeed2rss v0.5.3');
+define('VERSION', 'vkfeed2rss v0.5.4');
 define('RSSVERSION', '2.0');
 
 // page type
-define('TGROUP', 1);
-define('TUSER', 2);
+define('TGROUP', 0);
+define('TUSER', 1);
 
 // post type
-define('PPOST', 1);
-define('PREPOST', 2);
+define('PPOST', 0);
+define('PREPOST', 1);
 
 // call constants from strings:
 // define('ANIMAL','turtles'); $constant='constant'; echo "I like {$constant('ANIMAL')}";
 $constant = 'constant';
 
-/* 
+/*
  * convert vk url (https://vk.com/apiclub) to vk domain (apiclub)
  * Supported url forms:
  * "https://vk.com/id1"
@@ -53,12 +53,12 @@ function vk_path_from_url(string $url) {
 			case 1: $tmp = parse_url("https://{$url}"); break;
 			case 2: $tmp = parse_url(VKURL . $url); break;
 		}
-		
+
 		if (($tmp['scheme'] == 'http' or $tmp['scheme'] == 'https') // check
 		and $tmp['path'] != '/' and $tmp['path'])
 			return substr($tmp['path'], 1);
 	}
-	
+
 	// if the function can't parse the url, die
 	die("Bad url");
 }
@@ -91,7 +91,7 @@ function config_get() {
 		else
 			$config['count'] = (int)$_GET['count'];
 	}
-	
+
 	// filter
 	if (isset($_GET['filter'])) {
 		switch($_GET['filter']) {
@@ -101,7 +101,7 @@ function config_get() {
 			default: die("Only all, owner and others filters are supported");
 		}
 	}
-	
+
 	// resolving page's id and type
 	$tmp = json_get_contents("{$GLOBALS['constant']('BASE')}utils.resolveScreenName?screen_name={$config['path']}");
 	if ($tmp['response'] == NULL)
@@ -118,7 +118,7 @@ function config_get() {
 			default: die("Only groups and users are supported");
 		}
 	}
-	
+
 	return $config;
 }
 
@@ -146,17 +146,17 @@ function load_posts(array $config) {
 	$req .= $config['id'];
 	// we need extended info
 	$req .= '&extended=1';
-	//count and filter
+	// count and filter
 	if (isset($config['count']))
 		$req .= '&count=' . (string)$config['count'];
 	if (isset($config['filter']))
 		$req .= "&filter={$config['filter']}";
-	//access_token
+	// access_token
 	$req .= "&access_token={$config['apikey']}";
 	// api version
 	$req .= "&v={$GLOBALS['constant']('APIVERSION')}";
-	
-	//do the request
+
+	// do the request
 	$ret = json_get_contents($req);
 	if (isset($ret['error']))
 		die($ret['error']['error_msg']);
@@ -168,8 +168,10 @@ function load_posts(array $config) {
 function process_raw(array $raw_info, array $raw_posts, array $config) {
 	// parse vk item's <description>
 	function item_parse(array $item) {
+		// find [id1|Pawel Durow] form links
+		$ret = preg_replace('/\[(\w+)\|(.+)\]/', "<a href='{$GLOBALS['constant']('VKURL')}$1'>$2</a>", $item['text']);
 		// change all linebreak to HTML compatible <br />
-		$ret = nl2br($item['text']);		
+		$ret = nl2br($ret);
 
 		// attachments
 		if (isset($item['attachments'])) {
@@ -178,6 +180,7 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 				// VK videos
 				if ($attachment['type'] == 'video')
 					$ret .= "\n<p><a href='{$GLOBALS['constant']('VKURL')}video{$attachment['video']['owner_id']}_{$attachment['video']['id']}'><img src='{$attachment['video']['photo_320']}' alt='{$attachment['video']['title']}'></a></p>";
+				// VK audio
 				elseif ($attachment['type'] == 'audio')
 					// $attachment['audio']['url'] будет: https://vk.com/mp3/audio_api_unavailable.mp3
 					$ret .= "\n<p><a href='{$attachment['audio']['url']}'>{$attachment['audio']['artist']} - {$attachment['audio']['title']}</a></p>";
@@ -202,10 +205,10 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 
 		return $ret;
 	}
-	
+
 	$rss = array();
 	$infores = $raw_info['response'][0];
-	
+
 	// title
 	if ($config['type'] == TGROUP)
 		$rss['title'] = $infores['name'];
@@ -222,7 +225,7 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 		$rss['description'] = $infores['status'];
 	elseif ($config['type'] == TGROUP)
 		$rss['description'] = $infores['description'];
-		
+
 	// generator
 	$rss['generator'] = VERSION;
 
@@ -250,17 +253,17 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 			$rss['post'][$i]['type'] = PPOST;
 		}
 		$rss['post'][$i]['description'] = $desc;
-		
+
 		// title
 		// it will be id of post
 		if ($rss['post'][$i]['type'] == PPOST)
 			$rss['post'][$i]['title'] = "Post {$item['id']}";
 		elseif ($rss['post'][$i]['type'] == PREPOST)
 			$rss['post'][$i]['title'] = "Repost {$item['id']}";
-		
+
 		// pubDate
 		$rss['post'][$i]['pubDate'] = date(DATE_RSS, $item['date']);
-		
+
 		// link
 		$rss['post'][$i]['link'] = "{$GLOBALS['constant']('VKURL')}{$infores['screen_name']}?w=wall-{$infores['id']}_{$item['id']}";
 	}
@@ -334,6 +337,7 @@ $raw_posts = load_posts($config);
 // $rss is a RSS-style array
 $rss = process_raw($raw_info, $raw_posts, $config);
 
+// RSS header and use of UTF-8
 header('Content-Type: application/xhtml+xml; charset=utf-8');
 
 // outputting processed data
