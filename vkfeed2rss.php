@@ -1,6 +1,6 @@
 <?php
 /*
-Copyright (c) 2017 coyote03
+Copyright (c) 2017-2018 coyote03
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -23,8 +23,8 @@ SOFTWARE.
 
 define('BASE', 'https://api.vk.com/method/');
 define('VKURL', 'https://vk.com/');
-define('APIVERSION', '5.69');
-define('VERSION', 'vkfeed2rss v0.5.4');
+define('APIVERSION', '5.70');
+define('VERSION', 'vkfeed2rss v0.6');
 define('RSSVERSION', '2.0');
 
 // page type
@@ -103,7 +103,7 @@ function config_get() {
 	}
 
 	// resolving page's id and type
-	$tmp = json_get_contents("{$GLOBALS['constant']('BASE')}utils.resolveScreenName?screen_name={$config['path']}");
+	$tmp = json_get_contents("{$GLOBALS['constant']('BASE')}utils.resolveScreenName?screen_name={$config['path']}&v={$GLOBALS['constant']('APIVERSION')}");
 	if ($tmp['response'] == NULL)
 		die("Page resolve error");
 	else {
@@ -168,8 +168,10 @@ function load_posts(array $config) {
 function process_raw(array $raw_info, array $raw_posts, array $config) {
 	// parse vk item's <description>
 	function item_parse(array $item) {
+		// find URLs
+		$ret = preg_replace('/((https?|ftp|gopher)\:\/\/[a-zA-Z0-9\-\.]+(:[a-zA-Z0-9]*)?\/?([\w\-\+\.\?\,\'\/&amp;%\$#\=~\x5C])*)/', "<a href='$1'>$1</a>", $item['text']);
 		// find [id1|Pawel Durow] form links
-		$ret = preg_replace('/\[(\w+)\|(.+)\]/', "<a href='{$GLOBALS['constant']('VKURL')}$1'>$2</a>", $item['text']);
+		$ret = preg_replace('/\[(\w+)\|([^\]]+)\]/', "<a href='{$GLOBALS['constant']('VKURL')}$1'>$2</a>", $ret);
 		// change all linebreak to HTML compatible <br />
 		$ret = nl2br($ret);
 
