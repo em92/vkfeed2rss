@@ -24,7 +24,7 @@ SOFTWARE.
 define('BASE', 'https://api.vk.com/method/');
 define('VKURL', 'https://vk.com/');
 define('APIVERSION', '5.70');
-define('VERSION', 'vkfeed2rss v0.6');
+define('VERSION', 'vkfeed2rss v1.0alpha1');
 define('RSSVERSION', '2.0');
 
 // page type
@@ -71,10 +71,14 @@ function json_get_contents(string $str) {
 // get some configuration variables
 function config_get() {
 	// some functions needs vk api key
-	$tmp = json_get_contents("conf/vkfeed2rss.json");
-	$config['apikey'] = $tmp['apikey'];
-	if (!$config['apikey']) // if no apikey or file not found
-		die("No api key");
+	if (isset($_GET['apikey']))
+		$config['apikey'] = $_GET['apikey'];
+	else {
+		$tmp = json_get_contents("conf/vkfeed2rss.json");
+		$config['apikey'] = $tmp['apikey'];
+		if (!$config['apikey']) // if no apikey or file not found
+			die("No api key");
+	}
 
 	// path
 	if (isset($_GET['path']))
