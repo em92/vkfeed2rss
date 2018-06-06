@@ -24,7 +24,7 @@ SOFTWARE.
 define('BASE', 'https://api.vk.com/method/');
 define('VKURL', 'https://vk.com/');
 define('APIVERSION', '5.70');
-define('VERSION', 'vkfeed2rss v1.0alpha1');
+define('VERSION', 'vkfeed2rss v1.0alpha4');
 define('RSSVERSION', '2.0');
 
 // page type
@@ -34,6 +34,10 @@ define('TUSER', 1);
 // post type
 define('PPOST', 0);
 define('PREPOST', 1);
+
+// security
+define('HTMLTAGREGEX', '/<\/?\w*>/');
+// /(<.[^(><.)]+>)/
 
 // call constants from strings:
 // define('ANIMAL','turtles'); $constant='constant'; echo "I like {$constant('ANIMAL')}";
@@ -63,10 +67,16 @@ function vk_path_from_url(string $url) {
 	die("Bad url");
 }
 
-// short api calling&decoding
+// file_get_contents() + json_decode()
 function json_get_contents(string $str) {
+	//print($str);
 	return json_decode(file_get_contents($str), true, 16, JSON_BIGINT_AS_STRING);
 }
+
+//~ // call VK API method
+//~ function vk_call(string method, array opts, string apikey = NULL) {
+	
+//~ }
 
 // get some configuration variables
 function config_get() {
@@ -107,9 +117,13 @@ function config_get() {
 	}
 
 	// resolving page's id and type
-	$tmp = json_get_contents("{$GLOBALS['constant']('BASE')}utils.resolveScreenName?screen_name={$config['path']}&v={$GLOBALS['constant']('APIVERSION')}");
-	if ($tmp['response'] == NULL)
-		die("Page resolve error");
+	$tmp = json_get_contents("{$GLOBALS['constant']('BASE')}utils.resolveScreenName?screen_name={$config['path']}&v={$GLOBALS['constant']('APIVERSION')}&access_token={$config['apikey']}");
+	if (is_null($tmp['response'])) {
+		if (isset($tmp['error']))
+			die($tmp['error']['error_msg']);
+		else
+			die("Unrecognized error, internet connection probably does not work");
+	}
 	else {
 		// id
 		$config['id'] = $tmp['response']['object_id'];
@@ -129,9 +143,9 @@ function config_get() {
 // load info about a page
 function load_info(array $config) {
 	if ($config['type'] == TGROUP)
-		$ret = json_get_contents("{$GLOBALS['constant']('BASE')}groups.getById?fields=description,photo_big,type&group_id={$config['id']}&v={$GLOBALS['constant']('APIVERSION')}");
+		$ret = json_get_contents("{$GLOBALS['constant']('BASE')}groups.getById?fields=description,photo_big,type&group_id={$config['id']}&v={$GLOBALS['constant']('APIVERSION')}&access_token={$config['apikey']}");
 	elseif ($config['type'] == TUSER)
-		$ret = json_get_contents("{$GLOBALS['constant']('BASE')}users.get?fields=status,photo_max_orig,screen_name&user_ids={$config['id']}&v={$GLOBALS['constant']('APIVERSION')}");
+		$ret = json_get_contents("{$GLOBALS['constant']('BASE')}users.get?fields=status,photo_max_orig,screen_name&user_ids={$config['id']}&v={$GLOBALS['constant']('APIVERSION')}&access_token={$config['apikey']}");
 	if (isset($ret['error']))
 		die($ret['error']['error_msg']);
 	elseif ($ret['response'][0]['is_closed'] == true)
@@ -187,12 +201,20 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 				if ($attachment['type'] == 'video')
 					$ret .= "\n<p><a href='{$GLOBALS['constant']('VKURL')}video{$attachment['video']['owner_id']}_{$attachment['video']['id']}'><img src='{$attachment['video']['photo_320']}' alt='{$attachment['video']['title']}'></a></p>";
 				// VK audio
+				// СДЕЛАТЬ: исправить уязвимости
 				elseif ($attachment['type'] == 'audio')
 					// $attachment['audio']['url'] будет: https://vk.com/mp3/audio_api_unavailable.mp3
-					$ret .= "\n<p><a href='{$attachment['audio']['url']}'>{$attachment['audio']['artist']} - {$attachment['audio']['title']}</a></p>";
+					// this regex is for security
+					if (!preg_match(HTMLTAGREGEX, $attachment['audio']['url']) and !preg_match(HTMLTAGREGEX, $attachment['audio']['title'])) {
+						$audio_url = urlencode($attachment['audio']['url']);
+						$ret .= "\n<p><a href='{$audio_url}'>{$attachment['audio']['artist']} - {$attachment['audio']['title']}</a></p>";
+					}
 				// any doc apart of gif
 				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] != 'gif')
-					$ret .= "\n<p><a href='{$attachment['doc']['url']}'>{$attachment['doc']['title']}</a></p>";
+					if (!preg_match(HTMLTAGREGEX, $attachment['doc']['title'])) {
+						$doc_url = urlencode($attachment['doc']['url']);
+						$ret .= "\n<p><a href='{$doc_url}'>{$attachment['doc']['title']}</a></p>";
+					}
 			}
 			// level 2
 			foreach ($item['attachments'] as $attachment) {
@@ -204,8 +226,12 @@ function process_raw(array $raw_info, array $raw_posts, array $config) {
 				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] == 'gif')
 					$ret .= "\n<p><img src='{$attachment['doc']['url']}'></p>";
 				// links
-				elseif ($attachment['type'] == 'link')
-					$ret .= "\n<p><a href='{$attachment['link']['url']}'><img src='{$attachment['link']['photo']['photo_604']}' alt='{$attachment['link']['title']}'></a></p>";
+				elseif ($attachment['type'] == 'link') {
+					if (isset($attachment['link']['photo']['photo_604']))
+						$ret .= "\n<p><a href='{$attachment['link']['url']}'><img src='{$attachment['link']['photo']['photo_604']}' alt='{$attachment['link']['title']}'></a></p>";
+					else
+						$ret .= "\n<p><a href='{$attachment['link']['url']}'>{$attachment['link']['title']}</a></p>";
+				}
 			}
 		}
 
