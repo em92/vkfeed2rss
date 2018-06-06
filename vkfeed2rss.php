@@ -89,42 +89,64 @@ function vk_call(string $method, array $opts, string $apikey = CONFIG['apikey'],
 }
 
 // load info about a page
-function load_info() {
-	if (CONFIG['type'] == TGROUP)
+function load_info($pageres) {
+	if ($pageres['type'] == TGROUP) {
 		$ret = vk_call('groups.getById', array(
 			'fields' => 'description,photo_big,type',
-			'group_id' => CONFIG['id']
+			'group_id' => $pageres['id']
 		));
-	elseif (CONFIG['type'] == TUSER)
+		// Сомнительная нужность этой проверки
+		if ($ret['response'][0]['is_closed'])
+			die("The group is closed");
+	}
+	elseif ($pageres['type'] == TUSER)
 		$ret = vk_call('users.get', array(
 			'fields' => 'status,photo_max_orig,screen_name',
-			'user_ids' => CONFIG['id']
+			'user_ids' => $pageres['id']
 		));
-	if (isset($ret['error']))
-		die($ret['error']['error_msg']);
-	elseif ($ret['response'][0]['is_closed'] == true)
-		die("The group is closed");
-	else
-		return $ret;
+	return $ret;
 }
 
 // load posts from a page
-function load_posts() {
-	$opts = array();
-	if (CONFIG['type'] == TGROUP)
-		$opts['owner_id'] = '-'.(string)CONFIG['id'];
-	elseif (CONFIG['type'] == TUSER)
-		$opts['owner_id'] = (string)CONFIG['id'];
+function load_posts(array $pageres) {
+	// TGROUPs need - at start
+	switch ($pageres['type']) {
+		case TGROUP: $opts['owner_id'] = '-'.(string)$pageres['id']; break;
+		case TUSER:  $opts['owner_id'] = (string)$pageres['id']; break;
+	}
+	// extended posts
 	$opts['extended'] = 1;
+	// count
 	if (isset(CONFIG['count']))
 		$opts['count'] = (string)CONFIG['count'];
+	// filter
 	if (isset(CONFIG['filter']))
 		$opts['filter'] = CONFIG['filter'];
+	
+	//echo '<!--'; var_dump(vk_call('wall.get', $opts)); echo "-->\n";
 	return vk_call('wall.get', $opts);
 }
 
+function resolve_page() {
+	$tmp = vk_call('utils.resolveScreenName', array('screen_name' => CONFIG['path']));
+	if (empty($tmp['response'])) {
+		die("Error, not found");
+	}
+	// id
+	$ret['id'] = $tmp['response']['object_id'];
+	// type
+	switch ($tmp['response']['type']) {
+		case 'user': $ret['type'] = TUSER; break;
+		case 'group':
+		case 'event':
+		case 'page': $ret['type'] = TGROUP; break;
+		default: die("Only groups and users are supported");
+	}
+	return $ret;
+}
+
 // processes raw data
-function process_raw(array $raw_info, array $raw_posts) {
+function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 	// parse vk item's <description>
 	function item_parse(array $item) {
 		// find URLs
@@ -179,25 +201,24 @@ function process_raw(array $raw_info, array $raw_posts) {
 		return $ret;
 	}
 
-	$rss = array();
 	$infores = $raw_info['response'][0];
 
 	// title
-	if ($config['type'] == TGROUP)
-		$rss['title'] = $infores['name'];
-	elseif ($config['type'] == TUSER)
-		$rss['title'] = "{$infores['first_name']} {$infores['last_name']}";
+	switch ($pageres['type']) {
+		case TGROUP: $rss['title'] = $infores['name']; break;
+		case TUSER:  $rss['title'] = "{$infores['first_name']} {$infores['last_name']}"; break;
+	}
 
 	// link
 	$rss['link'] = "{$GLOBALS['constant']('VKURL')}{$infores['screen_name']}";
 
 	// description
-	//for group, its description used
-	//for user, its status
-	if ($config['type'] == TUSER)
-		$rss['description'] = $infores['status'];
-	elseif ($config['type'] == TGROUP)
-		$rss['description'] = $infores['description'];
+	// for group, its description used
+	// for user, its status
+	switch ($pageres['type']) {
+		case TGROUP: $rss['description'] = $infores['description']; break;
+		case TUSER:  $rss['description'] = $infores['status']; break;
+	}
 
 	// generator
 	$rss['generator'] = VERSION;
@@ -206,13 +227,12 @@ function process_raw(array $raw_info, array $raw_posts) {
 	$rss['docs'] = 'http://www.rssboard.org/rss-specification';
 
 	// image
-	if ($config['type'] == TGROUP)
-		$rss['image']['url'] = $infores['photo_200'];
-	elseif ($config['type'] == TUSER)
-		$rss['image']['url'] = $infores['photo_max_orig'];
+	switch ($pageres['type']) {
+		case TGROUP: $rss['image']['url'] = $infores['photo_200']; break;
+		case TUSER:  $rss['image']['url'] = $infores['photo_max_orig']; break;
+	}
 
 	// item
-	// the hardest
 	foreach ($raw_posts['response']['items'] as $i => $item) {
 		// description
 		// handle a repost (simple post is lower)
@@ -297,75 +317,59 @@ function rss_output(array $rss) {
 	print $xw->outputMemory();
 }
 
-// start read from here
-
-// some functions needs vk api key
-if (isset($_GET['apikey']))
-	$config['apikey'] = $_GET['apikey'];
-elseif (constant('APIKEY'))
-	$config['apikey'] = APIKEY;
-else
-	die("No api key");
-// path
-if (isset($_GET['path']))
-	$config['path'] = $_GET['path'];
-elseif (isset($_GET['url']))
-	$config['path'] = vk_path_from_url($_GET['url']);
-else
-	die("url or path has to be specified");
-// count
-if (isset($_GET['count'])) {
-	if ((int)$_GET['count'] < 0 or (int)$_GET['count'] > 100)
-		die("Count limit is from 0 to 100");
+function main() {
+	// some functions needs vk api key
+	if (isset($_GET['apikey']))
+		$config['apikey'] = $_GET['apikey'];
+	elseif (constant('APIKEY'))
+		$config['apikey'] = APIKEY;
 	else
-		$config['count'] = (int)$_GET['count'];
-}
-// filter
-if (isset($_GET['filter'])) {
-	switch($_GET['filter']) {
-		case 'all':
-		case 'owner':
-		case 'others': $config['filter'] = $_GET['filter']; break;
-		default: die("Only all, owner and others filters are supported");
-	}
-}
-// resolving page's id and type
-$tmp = vk_call('utils.resolveScreenName', array('screen_name' => $config['path']), $config['apikey']);
-if (is_null($tmp['response'])) {
-	if (isset($tmp['error']))
-		die($tmp['error']['error_msg']);
+		die("No api key");
+
+	// path
+	if (isset($_GET['path']))
+		$config['path'] = $_GET['path'];
+	elseif (isset($_GET['url']))
+		$config['path'] = vk_path_from_url($_GET['url']);
 	else
-		die("Unrecognized error, internet connection probably does not work");
-}
-else {
-	// id
-	$config['id'] = $tmp['response']['object_id'];
-	// type
-	switch($tmp['response']['type']) {
-		case 'user': $config['type'] = TUSER; break;
-		case 'group':
-		case 'event':
-		case 'page': $config['type'] = TGROUP; break;
-		default: die("Only groups and users are supported");
+		die("url or path has to be specified");
+
+	// count
+	if (isset($_GET['count'])) {
+		if ((int)$_GET['count'] < 0 or (int)$_GET['count'] > 100)
+			die("Count limit is from 0 to 100");
+		else
+			$config['count'] = $_GET['count']; // no need to convert to integer
 	}
-}
 
-// configuration available fromeverywhere the program
-define('CONFIG', $config);
-unset($config);
-unset($tmp);
+	// filter
+	if (isset($_GET['filter'])) {
+		switch($_GET['filter']) {
+			case 'all':
+			case 'owner':
+			case 'others': $config['filter'] = $_GET['filter']; break;
+			default: die("Only all, owner and others filters are supported");
+		}
+	}
 
-// raw page info and posts
-$raw_info = load_info();
-$raw_posts = load_posts();
+	// configuration available fromeverywhere the program
+	define('CONFIG', $config);
+	unset($config);
 
-// processing raw data
-// $rss is a RSS-style array
-$rss = process_raw($raw_info, $raw_posts);
+	// resolving page's id and type
+	$pageres = resolve_page();
+	// raw page info and posts
+	$raw_info = load_info($pageres);
+	$raw_posts = load_posts($pageres);
 
-// RSS header and use of UTF-8
-header('Content-Type: application/xhtml+xml; charset=utf-8');
+	// processing raw data
+	// $rss is a RSS-style array
+	$rss = process_raw($raw_info, $raw_posts, $pageres);
 
-// outputting processed data
-rss_output($rss);
+	// RSS header and use of UTF-8
+	header('Content-Type: application/xhtml+xml; charset=utf-8');
+
+	// outputting processed data
+	rss_output($rss);
+}; main();
 ?>
