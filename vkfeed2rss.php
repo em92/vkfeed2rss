@@ -1,6 +1,6 @@
 <?php
 /*
-Copyright (c) 2017-2018 coyote03
+Copyright (c) 2017-2018 SlackCoyote
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -21,15 +21,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-const APIVERSION = '5.70';
-const APIKEY = 'APIKEY';
-const VERSION = 'vkfeed2rss v1.0 RC1';
-const VKURL = 'https://vk.com/';
+// API key
+const APIKEY = 'bad2b58cbad2b58cbad2b58c5dbab040f7bbad2bad2b58ce1d0d4c7eddf26ebb46b4e33';
 
+const APIVERSION = '5.70';
+const VERSION = 'vkfeed2rss v1.0 RC2';
+const VKURL = 'https://vk.com/';
 // page type
 const TGROUP = 0;
 const TUSER = 1;
-
 // post type
 const PPOST = 0;
 const PREPOST = 1;
@@ -66,15 +66,9 @@ function vk_path_from_url(string $url) {
 	die("Bad url");
 }
 
-// file_get_contents() + json_decode()
-function json_get_contents(string $str) {
-	//print($str);
-	return json_decode(file_get_contents($str), true, 16, JSON_BIGINT_AS_STRING);
-}
-
 // call VK API method
-function vk_call(string $method, array $opts, string $apikey = NULL) {
-	if (!is_null($apikey))
+function vk_call(string $method, array $opts, string $apikey = CONFIG['apikey'], bool $use_apikey = true) {
+	if ($use_apikey)
 		$opts['access_token'] = $apikey;
 	$opts['v'] = APIVERSION;
 
@@ -91,81 +85,21 @@ function vk_call(string $method, array $opts, string $apikey = NULL) {
 			return $result;
 	}
 	else
-		die("The json cannot be decoded or if the encoded data is deeper than the recursion limit");
-}
-
-// get some configuration variables
-function config_get() {
-	// some functions needs vk api key
-	if (isset($_GET['apikey']))
-		$config['apikey'] = $_GET['apikey'];
-	elseif (constant('APIKEY'))
-		$config['apikey'] = APIKEY;
-	else
-		die("No api key");
-
-	// path
-	if (isset($_GET['path']))
-		$config['path'] = $_GET['path'];
-	elseif (isset($_GET['url']))
-		$config['path'] = vk_path_from_url($_GET['url']);
-	else
-		die("url or path has to be specified");
-
-	// count
-	if (isset($_GET['count'])) {
-		if ((int)$_GET['count'] < 0 or (int)$_GET['count'] > 100)
-			die("Count limit is from 0 to 100");
-		else
-			$config['count'] = (int)$_GET['count'];
-	}
-
-	// filter
-	if (isset($_GET['filter'])) {
-		switch($_GET['filter']) {
-			case 'all':
-			case 'owner':
-			case 'others': $config['filter'] = $_GET['filter']; break;
-			default: die("Only all, owner and others filters are supported");
-		}
-	}
-
-	// resolving page's id and type
-	$tmp = vk_call('utils.resolveScreenName', array('screen_name' => $config['path']), $config['apikey']);
-	if (is_null($tmp['response'])) {
-		if (isset($tmp['error']))
-			die($tmp['error']['error_msg']);
-		else
-			die("Unrecognized error, internet connection probably does not work");
-	}
-	else {
-		// id
-		$config['id'] = $tmp['response']['object_id'];
-		// type
-		switch($tmp['response']['type']) {
-			case 'user': $config['type'] = TUSER; break;
-			case 'group':
-			case 'event':
-			case 'page': $config['type'] = TGROUP; break;
-			default: die("Only groups and users are supported");
-		}
-	}
-
-	return $config;
+		die("The json cannot be decoded or the encoded data is deeper than the recursion limit");
 }
 
 // load info about a page
-function load_info(array $config) {
-	if ($config['type'] == TGROUP)
+function load_info() {
+	if (CONFIG['type'] == TGROUP)
 		$ret = vk_call('groups.getById', array(
 			'fields' => 'description,photo_big,type',
-			'group_id' => $config['id']
-		), $config['apikey']);
-	elseif ($config['type'] == TUSER)
+			'group_id' => CONFIG['id']
+		));
+	elseif (CONFIG['type'] == TUSER)
 		$ret = vk_call('users.get', array(
 			'fields' => 'status,photo_max_orig,screen_name',
-			'user_ids' => $config['id']
-		), $config['apikey']);
+			'user_ids' => CONFIG['id']
+		));
 	if (isset($ret['error']))
 		die($ret['error']['error_msg']);
 	elseif ($ret['response'][0]['is_closed'] == true)
@@ -175,22 +109,22 @@ function load_info(array $config) {
 }
 
 // load posts from a page
-function load_posts(array $config) {
+function load_posts() {
 	$opts = array();
-	if ($config['type'] == TGROUP)
-		$opts['owner_id'] = "-{$config['id']}";
-	elseif ($config['type'] == TUSER)
-		$opts['owner_id'] = "{$config['id']}";
+	if (CONFIG['type'] == TGROUP)
+		$opts['owner_id'] = '-'.(string)CONFIG['id'];
+	elseif (CONFIG['type'] == TUSER)
+		$opts['owner_id'] = (string)CONFIG['id'];
 	$opts['extended'] = 1;
-	if (isset($config['count']))
-		$opts['count'] = (string)$config['count'];
-	if (isset($config['filter']))
-		$opts['filter'] = $config['filter'];
-	return vk_call('wall.get', $opts, $config['apikey']);
+	if (isset(CONFIG['count']))
+		$opts['count'] = (string)CONFIG['count'];
+	if (isset(CONFIG['filter']))
+		$opts['filter'] = CONFIG['filter'];
+	return vk_call('wall.get', $opts);
 }
 
 // processes raw data
-function process_raw(array $raw_info, array $raw_posts, array $config) {
+function process_raw(array $raw_info, array $raw_posts) {
 	// parse vk item's <description>
 	function item_parse(array $item) {
 		// find URLs
@@ -365,16 +299,69 @@ function rss_output(array $rss) {
 
 // start read from here
 
-// configuration
-$config = config_get();
+// some functions needs vk api key
+if (isset($_GET['apikey']))
+	$config['apikey'] = $_GET['apikey'];
+elseif (constant('APIKEY'))
+	$config['apikey'] = APIKEY;
+else
+	die("No api key");
+// path
+if (isset($_GET['path']))
+	$config['path'] = $_GET['path'];
+elseif (isset($_GET['url']))
+	$config['path'] = vk_path_from_url($_GET['url']);
+else
+	die("url or path has to be specified");
+// count
+if (isset($_GET['count'])) {
+	if ((int)$_GET['count'] < 0 or (int)$_GET['count'] > 100)
+		die("Count limit is from 0 to 100");
+	else
+		$config['count'] = (int)$_GET['count'];
+}
+// filter
+if (isset($_GET['filter'])) {
+	switch($_GET['filter']) {
+		case 'all':
+		case 'owner':
+		case 'others': $config['filter'] = $_GET['filter']; break;
+		default: die("Only all, owner and others filters are supported");
+	}
+}
+// resolving page's id and type
+$tmp = vk_call('utils.resolveScreenName', array('screen_name' => $config['path']), $config['apikey']);
+if (is_null($tmp['response'])) {
+	if (isset($tmp['error']))
+		die($tmp['error']['error_msg']);
+	else
+		die("Unrecognized error, internet connection probably does not work");
+}
+else {
+	// id
+	$config['id'] = $tmp['response']['object_id'];
+	// type
+	switch($tmp['response']['type']) {
+		case 'user': $config['type'] = TUSER; break;
+		case 'group':
+		case 'event':
+		case 'page': $config['type'] = TGROUP; break;
+		default: die("Only groups and users are supported");
+	}
+}
+
+// configuration available fromeverywhere the program
+define('CONFIG', $config);
+unset($config);
+unset($tmp);
 
 // raw page info and posts
-$raw_info = load_info($config);
-$raw_posts = load_posts($config);
+$raw_info = load_info();
+$raw_posts = load_posts();
 
 // processing raw data
 // $rss is a RSS-style array
-$rss = process_raw($raw_info, $raw_posts, $config);
+$rss = process_raw($raw_info, $raw_posts);
 
 // RSS header and use of UTF-8
 header('Content-Type: application/xhtml+xml; charset=utf-8');
