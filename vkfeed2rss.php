@@ -21,19 +21,18 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-define('BASE', 'https://api.vk.com/method/');
-define('VKURL', 'https://vk.com/');
-define('APIVERSION', '5.70');
-define('VERSION', 'vkfeed2rss v1.0alpha4');
-define('RSSVERSION', '2.0');
+const APIVERSION = '5.70';
+const APIKEY = 'APIKEY';
+const VERSION = 'vkfeed2rss v1.0 RC1';
+const VKURL = 'https://vk.com/';
 
 // page type
-define('TGROUP', 0);
-define('TUSER', 1);
+const TGROUP = 0;
+const TUSER = 1;
 
 // post type
-define('PPOST', 0);
-define('PREPOST', 1);
+const PPOST = 0;
+const PREPOST = 1;
 
 // security
 define('HTMLTAGREGEX', '/<\/?\w*>/');
@@ -73,22 +72,37 @@ function json_get_contents(string $str) {
 	return json_decode(file_get_contents($str), true, 16, JSON_BIGINT_AS_STRING);
 }
 
-//~ // call VK API method
-//~ function vk_call(string method, array opts, string apikey = NULL) {
-	
-//~ }
+// call VK API method
+function vk_call(string $method, array $opts, string $apikey = NULL) {
+	if (!is_null($apikey))
+		$opts['access_token'] = $apikey;
+	$opts['v'] = APIVERSION;
+
+	$uncontext = http_build_query($opts);
+	$result_raw = file_get_contents("https://api.vk.com/method/{$method}?{$uncontext}");
+	if (is_bool($result_raw) and $result_raw == FALSE)
+		die("Cannot access the server");
+
+	$result = json_decode($result_raw, true);
+	if ($result) {
+		if (isset($result['error']))
+			die($result['error']['error_msg']);
+		else
+			return $result;
+	}
+	else
+		die("The json cannot be decoded or if the encoded data is deeper than the recursion limit");
+}
 
 // get some configuration variables
 function config_get() {
 	// some functions needs vk api key
 	if (isset($_GET['apikey']))
 		$config['apikey'] = $_GET['apikey'];
-	else {
-		$tmp = json_get_contents("conf/vkfeed2rss.json");
-		$config['apikey'] = $tmp['apikey'];
-		if (!$config['apikey']) // if no apikey or file not found
-			die("No api key");
-	}
+	elseif (constant('APIKEY'))
+		$config['apikey'] = APIKEY;
+	else
+		die("No api key");
 
 	// path
 	if (isset($_GET['path']))
@@ -117,7 +131,7 @@ function config_get() {
 	}
 
 	// resolving page's id and type
-	$tmp = json_get_contents("{$GLOBALS['constant']('BASE')}utils.resolveScreenName?screen_name={$config['path']}&v={$GLOBALS['constant']('APIVERSION')}&access_token={$config['apikey']}");
+	$tmp = vk_call('utils.resolveScreenName', array('screen_name' => $config['path']), $config['apikey']);
 	if (is_null($tmp['response'])) {
 		if (isset($tmp['error']))
 			die($tmp['error']['error_msg']);
@@ -143,9 +157,15 @@ function config_get() {
 // load info about a page
 function load_info(array $config) {
 	if ($config['type'] == TGROUP)
-		$ret = json_get_contents("{$GLOBALS['constant']('BASE')}groups.getById?fields=description,photo_big,type&group_id={$config['id']}&v={$GLOBALS['constant']('APIVERSION')}&access_token={$config['apikey']}");
+		$ret = vk_call('groups.getById', array(
+			'fields' => 'description,photo_big,type',
+			'group_id' => $config['id']
+		), $config['apikey']);
 	elseif ($config['type'] == TUSER)
-		$ret = json_get_contents("{$GLOBALS['constant']('BASE')}users.get?fields=status,photo_max_orig,screen_name&user_ids={$config['id']}&v={$GLOBALS['constant']('APIVERSION')}&access_token={$config['apikey']}");
+		$ret = vk_call('users.get', array(
+			'fields' => 'status,photo_max_orig,screen_name',
+			'user_ids' => $config['id']
+		), $config['apikey']);
 	if (isset($ret['error']))
 		die($ret['error']['error_msg']);
 	elseif ($ret['response'][0]['is_closed'] == true)
@@ -156,30 +176,17 @@ function load_info(array $config) {
 
 // load posts from a page
 function load_posts(array $config) {
-	// make a request
-	$req = "{$GLOBALS['constant']('BASE')}wall.get?owner_id=";
-	// for groups minus is to be concatenated
+	$opts = array();
 	if ($config['type'] == TGROUP)
-		$req .= '-';
-	$req .= $config['id'];
-	// we need extended info
-	$req .= '&extended=1';
-	// count and filter
+		$opts['owner_id'] = "-{$config['id']}";
+	elseif ($config['type'] == TUSER)
+		$opts['owner_id'] = "{$config['id']}";
+	$opts['extended'] = 1;
 	if (isset($config['count']))
-		$req .= '&count=' . (string)$config['count'];
+		$opts['count'] = (string)$config['count'];
 	if (isset($config['filter']))
-		$req .= "&filter={$config['filter']}";
-	// access_token
-	$req .= "&access_token={$config['apikey']}";
-	// api version
-	$req .= "&v={$GLOBALS['constant']('APIVERSION')}";
-
-	// do the request
-	$ret = json_get_contents($req);
-	if (isset($ret['error']))
-		die($ret['error']['error_msg']);
-	else
-		return $ret;
+		$opts['filter'] = $config['filter'];
+	return vk_call('wall.get', $opts, $config['apikey']);
 }
 
 // processes raw data
@@ -311,7 +318,7 @@ function rss_output(array $rss) {
 	$xw->startDocument('1.0', 'UTF-8');
 		$xw->startElement('rss');
 			$xw->startAttribute('version');
-				$xw->text(RSSVERSION);
+				$xw->text('2.0');
 			$xw->endAttribute();
 			$xw->startElement('channel');
 				$xw->startElement('title');
