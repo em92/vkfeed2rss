@@ -26,7 +26,7 @@ const APIKEY = '6dc7444a6dc7444a6dc7444a2b6da4737366dc76dc7444a36df82edaed18901c
 
 const APIVERSION = '5.70';
 const VERSION = 'vkfeed2rss v1.0 RC3';
-const VKURL = 'https://vk.com/';
+
 // page type
 const TGROUP = 0;
 const TUSER = 1;
@@ -50,7 +50,7 @@ function vk_path_from_url(string $url) {
 		switch ($i) { // tries
 			case 0: $tmp = parse_url($url); break;
 			case 1: $tmp = parse_url("https://{$url}"); break;
-			case 2: $tmp = parse_url(VKURL . $url); break;
+			case 2: $tmp = parse_url("https://vk.com/{$url}"); break;
 		}
 
 		if (($tmp['scheme'] == 'http' or $tmp['scheme'] == 'https') // check
@@ -59,7 +59,7 @@ function vk_path_from_url(string $url) {
 	}
 
 	// if the function can't parse the url, die
-	die("Bad url");
+	die("Bad URL");
 }
 
 // call VK API method
@@ -86,15 +86,11 @@ function vk_call(string $method, array $opts, string $apikey = CONFIG['apikey'],
 
 // load info about a page
 function load_info($pageres) {
-	if ($pageres['type'] == TGROUP) {
+	if ($pageres['type'] == TGROUP)
 		$ret = vk_call('groups.getById', array(
 			'fields' => 'description,photo_big,type',
 			'group_id' => $pageres['id']
 		));
-		// Сомнительная нужность этой проверки
-		if ($ret['response'][0]['is_closed'])
-			die("The group is closed");
-	}
 	elseif ($pageres['type'] == TUSER)
 		$ret = vk_call('users.get', array(
 			'fields' => 'status,photo_max_orig,screen_name',
