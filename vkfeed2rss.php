@@ -25,7 +25,7 @@ SOFTWARE.
 const APIKEY = '6dc7444a6dc7444a6dc7444a2b6da4737366dc76dc7444a36df82edaed18901c04febf7';
 
 const APIVERSION = '5.70';
-const VERSION = 'vkfeed2rss v1.0 RC2';
+const VERSION = 'vkfeed2rss v1.0 RC3';
 const VKURL = 'https://vk.com/';
 // page type
 const TGROUP = 0;
@@ -33,10 +33,6 @@ const TUSER = 1;
 // post type
 const PPOST = 0;
 const PREPOST = 1;
-
-// security
-define('HTMLTAGREGEX', '/<\/?\w*>/');
-// /(<.[^(><.)]+>)/
 
 // call constants from strings:
 // define('ANIMAL','turtles'); $constant='constant'; echo "I like {$constant('ANIMAL')}";
@@ -158,7 +154,7 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 		// find URLs
 		$ret = preg_replace('/((https?|ftp|gopher)\:\/\/[a-zA-Z0-9\-\.]+(:[a-zA-Z0-9]*)?\/?([\w\-\+\.\?\,\'\/&amp;%\$#\=~\x5C])*)/', "<a href='$1'>$1</a>", $ret);
 		// find [id1|Pawel Durow] form links
-		$ret = preg_replace('/\[(\w+)\|([^\]]+)\]/', "<a href='{$GLOBALS['constant']('VKURL')}$1'>$2</a>", $ret);
+		$ret = preg_replace('/\[(\w+)\|([^\]]+)\]/', "<a href='https://vk.com/$1'>$2</a>", $ret);
 
 		// attachments
 		if (isset($item['attachments'])) {
@@ -168,21 +164,19 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 				if ($attachment['type'] == 'video') {
 					$title = htmlspecialchars($attachment['video']['title']);
 					$photo = htmlspecialchars($attachment['video']['photo_320']);
-					$href = htmlspecialchars(VKURL.'video'.$attachment['video']['owner_id'].'_'.$attachment['video']['id']);
-					$ret .= "\n<p><a href='{$href}'><img src='{$photo}' alt='{$title}'></a></p>";
+					$href = "https://vk.com/video{$attachment['video']['owner_id']}_{$attachment['video']['id']}";
+					$ret .= "\n<p><a href='{$href}'><img src='{$photo}' alt='Video: {$title}'></a></p>";
 				}
 				// VK audio
 				elseif ($attachment['type'] == 'audio') {
-					// $attachment['audio']['url'] будет: https://vk.com/mp3/audio_api_unavailable.mp3
-					$audio_url = urlencode($attachment['audio']['url']);
 					$artist = htmlspecialchars($attachment['audio']['artist']);
-					$title = htmlspecialchars($attachment['audio']['title']);
-					$ret .= "\n<p><a href='{$audio_url}'>{$artist} - {$title}</a></p>";
+					$title =  htmlspecialchars($attachment['audio']['title']);
+					$ret .= "\n<p>Audio: {$artist} - {$title}</p>";
 				}
 				// any doc apart of gif
 				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] != 'gif') {
-					$doc_url = urlencode($attachment['doc']['url']);
-					$title = htmlspecialchars($attachment['doc']['title']);
+					$doc_url = htmlspecialchars($attachment['doc']['url']);
+					$title =   htmlspecialchars($attachment['doc']['title']);
 					$ret .= "\n<p><a href='{$doc_url}'>{$title}</a></p>";
 				}
 			}
@@ -190,17 +184,26 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 			foreach ($item['attachments'] as $attachment) {
 				// JPEG, PNG photos
 				// GIF in vk is a document, so, not handled as photo
-				if ($attachment['type'] == 'photo')
-					$ret .= "\n<p><img src='{$attachment['photo']['photo_604']}'></p>";
+				if ($attachment['type'] == 'photo') {
+					$photo = htmlspecialchars($attachment['photo']['photo_604']);
+					$text =  htmlspecialchars($attachment['photo']['text']);
+					$ret .= "\n<p><img src='{$photo}' alt='{$text}'></p>";
+				}
 				// GIF docs
-				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] == 'gif')
-					$ret .= "\n<p><img src='{$attachment['doc']['url']}'></p>";
+				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] == 'gif') {
+					$url = htmlspecialchars($attachment['doc']['url']);
+					$ret .= "\n<p><img src='{$url}'></p>";
+				}
 				// links
 				elseif ($attachment['type'] == 'link') {
-					if (isset($attachment['link']['photo']['photo_604']))
-						$ret .= "\n<p><a href='{$attachment['link']['url']}'><img src='{$attachment['link']['photo']['photo_604']}' alt='{$attachment['link']['title']}'></a></p>";
+					$url =   htmlspecialchars($attachment['link']['url']);
+					$title = htmlspecialchars($attachment['link']['title']);
+					if (isset($attachment['link']['photo']['photo_604'])) {
+						$photo = htmlspecialchars(attachment['link']['photo']['photo_604']);
+						$ret .= "\n<p><a href='{$url}'><img src='{$photo}' alt='{$title}'></a></p>";
+					}
 					else
-						$ret .= "\n<p><a href='{$attachment['link']['url']}'>{$attachment['link']['title']}</a></p>";
+						$ret .= "\n<p><a href='{$url}'>{$title}</a></p>";
 				}
 			}
 		}
@@ -217,7 +220,7 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 	}
 
 	// link
-	$rss['link'] = "{$GLOBALS['constant']('VKURL')}{$infores['screen_name']}";
+	$rss['link'] = "https://vk.com/{$infores['screen_name']}";
 
 	// description
 	// for group, its description used
@@ -265,7 +268,7 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 		$rss['post'][$i]['pubDate'] = date(DATE_RSS, $item['date']);
 
 		// link
-		$rss['post'][$i]['link'] = "{$GLOBALS['constant']('VKURL')}{$infores['screen_name']}?w=wall-{$infores['id']}_{$item['id']}";
+		$rss['post'][$i]['link'] = "https://vk.com/{$infores['screen_name']}?w=wall-{$infores['id']}_{$item['id']}";
 	}
 
 	return $rss;
