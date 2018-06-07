@@ -22,7 +22,7 @@ SOFTWARE.
 */
 
 // API key
-const APIKEY = 'bad2b58cbad2b58cbad2b58c5dbab040f7bbad2bad2b58ce1d0d4c7eddf26ebb46b4e33';
+const APIKEY = '6dc7444a6dc7444a6dc7444a2b6da4737366dc76dc7444a36df82edaed18901c04febf7';
 
 const APIVERSION = '5.70';
 const VERSION = 'vkfeed2rss v1.0 RC2';
@@ -149,35 +149,42 @@ function resolve_page() {
 function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 	// parse vk item's <description>
 	function item_parse(array $item) {
-		// find URLs
-		$ret = preg_replace('/((https?|ftp|gopher)\:\/\/[a-zA-Z0-9\-\.]+(:[a-zA-Z0-9]*)?\/?([\w\-\+\.\?\,\'\/&amp;%\$#\=~\x5C])*)/', "<a href='$1'>$1</a>", $item['text']);
-		// find [id1|Pawel Durow] form links
-		$ret = preg_replace('/\[(\w+)\|([^\]]+)\]/', "<a href='{$GLOBALS['constant']('VKURL')}$1'>$2</a>", $ret);
+		// it's what we will return
+		$ret = $item['text'];
+		// html special characters convertion
+		$ret = htmlspecialchars($ret);
 		// change all linebreak to HTML compatible <br />
 		$ret = nl2br($ret);
+		// find URLs
+		$ret = preg_replace('/((https?|ftp|gopher)\:\/\/[a-zA-Z0-9\-\.]+(:[a-zA-Z0-9]*)?\/?([\w\-\+\.\?\,\'\/&amp;%\$#\=~\x5C])*)/', "<a href='$1'>$1</a>", $ret);
+		// find [id1|Pawel Durow] form links
+		$ret = preg_replace('/\[(\w+)\|([^\]]+)\]/', "<a href='{$GLOBALS['constant']('VKURL')}$1'>$2</a>", $ret);
 
 		// attachments
 		if (isset($item['attachments'])) {
 			// level 1
 			foreach ($item['attachments'] as $attachment) {
 				// VK videos
-				if ($attachment['type'] == 'video')
-					$ret .= "\n<p><a href='{$GLOBALS['constant']('VKURL')}video{$attachment['video']['owner_id']}_{$attachment['video']['id']}'><img src='{$attachment['video']['photo_320']}' alt='{$attachment['video']['title']}'></a></p>";
+				if ($attachment['type'] == 'video') {
+					$title = htmlspecialchars($attachment['video']['title']);
+					$photo = htmlspecialchars($attachment['video']['photo_320']);
+					$href = htmlspecialchars(VKURL.'video'.$attachment['video']['owner_id'].'_'.$attachment['video']['id']);
+					$ret .= "\n<p><a href='{$href}'><img src='{$photo}' alt='{$title}'></a></p>";
+				}
 				// VK audio
-				// СДЕЛАТЬ: исправить уязвимости
-				elseif ($attachment['type'] == 'audio')
+				elseif ($attachment['type'] == 'audio') {
 					// $attachment['audio']['url'] будет: https://vk.com/mp3/audio_api_unavailable.mp3
-					// this regex is for security
-					if (!preg_match(HTMLTAGREGEX, $attachment['audio']['url']) and !preg_match(HTMLTAGREGEX, $attachment['audio']['title'])) {
-						$audio_url = urlencode($attachment['audio']['url']);
-						$ret .= "\n<p><a href='{$audio_url}'>{$attachment['audio']['artist']} - {$attachment['audio']['title']}</a></p>";
-					}
+					$audio_url = urlencode($attachment['audio']['url']);
+					$artist = htmlspecialchars($attachment['audio']['artist']);
+					$title = htmlspecialchars($attachment['audio']['title']);
+					$ret .= "\n<p><a href='{$audio_url}'>{$artist} - {$title}</a></p>";
+				}
 				// any doc apart of gif
-				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] != 'gif')
-					if (!preg_match(HTMLTAGREGEX, $attachment['doc']['title'])) {
-						$doc_url = urlencode($attachment['doc']['url']);
-						$ret .= "\n<p><a href='{$doc_url}'>{$attachment['doc']['title']}</a></p>";
-					}
+				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] != 'gif') {
+					$doc_url = urlencode($attachment['doc']['url']);
+					$title = htmlspecialchars($attachment['doc']['title']);
+					$ret .= "\n<p><a href='{$doc_url}'>{$title}</a></p>";
+				}
 			}
 			// level 2
 			foreach ($item['attachments'] as $attachment) {
@@ -301,7 +308,7 @@ function rss_output(array $rss) {
 							$xw->text($item['title']);
 						$xw->endElement();
 						$xw->startElement('description');
-							$xw->text($item['description']);
+							$xw->writeCData($item['description']);
 						$xw->endElement();
 						$xw->startElement('pubDate');
 							$xw->text($item['pubDate']);
