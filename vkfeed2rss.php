@@ -22,10 +22,10 @@ SOFTWARE.
 */
 
 // API key
-const APIKEY = '6dc7444a6dc7444a6dc7444a2b6da4737366dc76dc7444a36df82edaed18901c04febf7';
+const APIKEY = 'APIKEY';
 
 const APIVERSION = '5.70';
-const VERSION = 'vkfeed2rss v1.0 RC3';
+const VERSION = 'vkfeed2rss v1.0';
 
 // page type
 const TGROUP = 0;
@@ -82,17 +82,18 @@ function vk_call(string $method, array $opts, string $apikey = CONFIG['apikey'],
 
 // load info about a page
 function load_info($pageres) {
-	if ($pageres['type'] == TGROUP)
-		$ret = vk_call('groups.getById', array(
+	switch ($pageres['type']) {
+	case TGROUP:
+		return vk_call('groups.getById', array(
 			'fields' => 'description,photo_big,type',
 			'group_id' => $pageres['id']
 		));
-	elseif ($pageres['type'] == TUSER)
-		$ret = vk_call('users.get', array(
+	case TUSER:
+		return vk_call('users.get', array(
 			'fields' => 'status,photo_max_orig,screen_name',
 			'user_ids' => $pageres['id']
 		));
-	return $ret;
+	}
 }
 
 // load posts from a page
@@ -139,7 +140,7 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 		// it's what we will return
 		$ret = $item['text'];
 		// html special characters convertion
-		$ret = htmlspecialchars($ret);
+		$ret = htmlentities($ret, ENT_QUOTES | ENT_HTML401);
 		// change all linebreak to HTML compatible <br />
 		$ret = nl2br($ret);
 		// find URLs
@@ -153,21 +154,21 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 			foreach ($item['attachments'] as $attachment) {
 				// VK videos
 				if ($attachment['type'] == 'video') {
-					$title = htmlspecialchars($attachment['video']['title']);
-					$photo = htmlspecialchars($attachment['video']['photo_320']);
+					$title = htmlentities($attachment['video']['title'], ENT_QUOTES | ENT_HTML401);
+					$photo = htmlentities($attachment['video']['photo_320'], ENT_QUOTES | ENT_HTML401);
 					$href = "https://vk.com/video{$attachment['video']['owner_id']}_{$attachment['video']['id']}";
 					$ret .= "\n<p><a href='{$href}'><img src='{$photo}' alt='Video: {$title}'></a></p>";
 				}
 				// VK audio
 				elseif ($attachment['type'] == 'audio') {
-					$artist = htmlspecialchars($attachment['audio']['artist']);
-					$title =  htmlspecialchars($attachment['audio']['title']);
+					$artist = htmlentities($attachment['audio']['artist'], ENT_QUOTES | ENT_HTML401);
+					$title =  htmlentities($attachment['audio']['title'], ENT_QUOTES | ENT_HTML401);
 					$ret .= "\n<p>Audio: {$artist} - {$title}</p>";
 				}
 				// any doc apart of gif
 				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] != 'gif') {
-					$doc_url = htmlspecialchars($attachment['doc']['url']);
-					$title =   htmlspecialchars($attachment['doc']['title']);
+					$doc_url = htmlentities($attachment['doc']['url'], ENT_QUOTES | ENT_HTML401);
+					$title =   htmlentities($attachment['doc']['title'], ENT_QUOTES | ENT_HTML401);
 					$ret .= "\n<p><a href='{$doc_url}'>{$title}</a></p>";
 				}
 			}
@@ -176,21 +177,21 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 				// JPEG, PNG photos
 				// GIF in vk is a document, so, not handled as photo
 				if ($attachment['type'] == 'photo') {
-					$photo = htmlspecialchars($attachment['photo']['photo_604']);
-					$text =  htmlspecialchars($attachment['photo']['text']);
+					$photo = htmlentities($attachment['photo']['photo_604'], ENT_QUOTES | ENT_HTML401);
+					$text =  htmlentities($attachment['photo']['text'], ENT_QUOTES | ENT_HTML401);
 					$ret .= "\n<p><img src='{$photo}' alt='{$text}'></p>";
 				}
 				// GIF docs
 				elseif ($attachment['type'] == 'doc' and $attachment['doc']['ext'] == 'gif') {
-					$url = htmlspecialchars($attachment['doc']['url']);
+					$url = htmlentities($attachment['doc']['url'], ENT_QUOTES | ENT_HTML401);
 					$ret .= "\n<p><img src='{$url}'></p>";
 				}
 				// links
 				elseif ($attachment['type'] == 'link') {
-					$url =   htmlspecialchars($attachment['link']['url']);
-					$title = htmlspecialchars($attachment['link']['title']);
+					$url =   htmlentities($attachment['link']['url'], ENT_QUOTES | ENT_HTML401);
+					$title = htmlentities($attachment['link']['title'], ENT_QUOTES | ENT_HTML401);
 					if (isset($attachment['link']['photo']['photo_604'])) {
-						$photo = htmlspecialchars(attachment['link']['photo']['photo_604']);
+						$photo = htmlentities(attachment['link']['photo']['photo_604'], ENT_QUOTES | ENT_HTML401);
 						$ret .= "\n<p><a href='{$url}'><img src='{$photo}' alt='{$title}'></a></p>";
 					}
 					else
@@ -198,18 +199,18 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 				}
 				// notes
 				elseif ($attachment['type'] == 'note') {
-					$title = htmlspecialchars($attachment['note']['title']);
-					$url =   htmlspecialchars($attachment['note']['view_url']);
+					$title = htmlentities($attachment['note']['title'], ENT_QUOTES | ENT_HTML401);
+					$url =   htmlentities($attachment['note']['view_url'], ENT_QUOTES | ENT_HTML401);
 					$ret .= "\n<p><a href='{$url}'>{$title}</a></p>";
 				}
 				// polls
 				elseif ($attachment['type'] == 'poll') {
-					$question = htmlspecialchars($attachment['poll']['question']);
+					$question = htmlentities($attachment['poll']['question'], ENT_QUOTES | ENT_HTML401);
 					$vote_count = $attachment['poll']['votes'];
 					$answers = $attachment['poll']['answers'];
 					$ret .= "\n<p>Poll: {$question} ({$vote_count} votes)<br />";
 					foreach ($answers as $answer) {
-						$text =  htmlspecialchars($answer['text']);
+						$text =  htmlentities($answer['text'], ENT_QUOTES | ENT_HTML401);
 						$votes = $answer['votes'];
 						$rate =  $answer['rate'];
 						$ret .= "* {$text}: {$votes} ({$rate}%)<br />";
