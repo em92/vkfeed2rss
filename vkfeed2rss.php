@@ -34,10 +34,6 @@ const TUSER = 1;
 const PPOST = 0;
 const PREPOST = 1;
 
-// call constants from strings:
-// define('ANIMAL','turtles'); $constant='constant'; echo "I like {$constant('ANIMAL')}";
-$constant = 'constant';
-
 /*
  * convert vk url (https://vk.com/apiclub) to vk domain (apiclub)
  * Supported url forms:
@@ -115,7 +111,6 @@ function load_posts(array $pageres) {
 	if (isset(CONFIG['filter']))
 		$opts['filter'] = CONFIG['filter'];
 	
-	//echo '<!--'; var_dump(vk_call('wall.get', $opts)); echo "-->\n";
 	return vk_call('wall.get', $opts);
 }
 
@@ -201,6 +196,26 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 					else
 						$ret .= "\n<p><a href='{$url}'>{$title}</a></p>";
 				}
+				// notes
+				elseif ($attachment['type'] == 'note') {
+					$title = htmlspecialchars($attachment['note']['title']);
+					$url =   htmlspecialchars($attachment['note']['view_url']);
+					$ret .= "\n<p><a href='{$url}'>{$title}</a></p>";
+				}
+				// polls
+				elseif ($attachment['type'] == 'poll') {
+					$question = htmlspecialchars($attachment['poll']['question']);
+					$vote_count = $attachment['poll']['votes'];
+					$answers = $attachment['poll']['answers'];
+					$ret .= "\n<p>Poll: {$question} ({$vote_count} votes)<br />";
+					foreach ($answers as $answer) {
+						$text =  htmlspecialchars($answer['text']);
+						$votes = $answer['votes'];
+						$rate =  $answer['rate'];
+						$ret .= "* {$text}: {$votes} ({$rate}%)<br />";
+					}
+					$ret .= "</p>";
+				}
 			}
 		}
 
@@ -252,13 +267,32 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 			$rss['post'][$i]['type'] = PPOST;
 		}
 		$rss['post'][$i]['description'] = $desc;
-
+		
 		// title
-		// it will be id of post
-		if ($rss['post'][$i]['type'] == PPOST)
-			$rss['post'][$i]['title'] = "Post {$item['id']}";
-		elseif ($rss['post'][$i]['type'] == PREPOST)
-			$rss['post'][$i]['title'] = "Repost {$item['id']}";
+		switch ($rss['post'][$i]['type']) {
+			case PPOST:   $title = "Post: "; break;
+			case PREPOST: $title = "Repost: "; break;
+		}
+		/*
+		 * if a post was posted by a group, its name will be added in title,
+		 * if by a[n] user, its name + familyname
+		 */
+		$poster = NULL;
+		// all the groups are negative integer
+		if ($item['from_id'] < 0) { // group
+			foreach ($raw_posts['response']['groups'] as $g)
+				if (($g['id'] * -1) == $item['from_id'])
+					$poster = "{$g['name']}"; // equals to: (string)$g['name']
+		} else { // user
+			foreach ($raw_posts['response']['profiles'] as $u)
+				if ($u['id'] == $item['from_id'])
+					$poster = "{$u['first_name']} {$u['last_name']}";
+		}
+		if ($poster != NULL)
+			$title .= $poster;
+		else
+			die("Unexpected error when generated title for an item");
+		$rss['post'][$i]['title'] = $title;
 
 		// pubDate
 		$rss['post'][$i]['pubDate'] = date(DATE_RSS, $item['date']);
