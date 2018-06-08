@@ -35,7 +35,7 @@ const PPOST = 0;
 const PREPOST = 1;
 
 /*
- * convert vk url (https://vk.com/apiclub) to vk domain (apiclub)
+ * convert vk url (https://vk.com/apiclub) to path (apiclub)
  * Supported url forms:
  * "https://vk.com/id1"
  * "vk.com/id1"
