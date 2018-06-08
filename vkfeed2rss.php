@@ -191,7 +191,7 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 					$url =   htmlentities($attachment['link']['url'], ENT_QUOTES | ENT_HTML401);
 					$title = htmlentities($attachment['link']['title'], ENT_QUOTES | ENT_HTML401);
 					if (isset($attachment['link']['photo']['photo_604'])) {
-						$photo = htmlentities(attachment['link']['photo']['photo_604'], ENT_QUOTES | ENT_HTML401);
+						$photo = htmlentities($attachment['link']['photo']['photo_604'], ENT_QUOTES | ENT_HTML401);
 						$ret .= "\n<p><a href='{$url}'><img src='{$photo}' alt='{$title}'></a></p>";
 					}
 					else
