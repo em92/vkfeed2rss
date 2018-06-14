@@ -308,7 +308,7 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 		$rss['post'][$i]['id'] = $item['id'];
 
 		// is pinned?
-		if (isset($item['is_pinned']))
+		if (isset($item['is_pinned']) and $item['is_pinned'] == 1)
 			$pinned_post_id = $item['id'];
 	}
 
