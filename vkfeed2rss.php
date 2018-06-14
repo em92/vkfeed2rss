@@ -255,7 +255,10 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 	}
 
 	// item
-	foreach ($raw_posts['response']['items'] as $i => $item) {
+	$pinned_post_id = 0;
+	foreach ($raw_posts['response']['items'] as $_i => $item) {
+		// id
+		$i = $item['id'];
 		// description
 		// handle a repost (simple post is lower)
 		if (isset($item['copy_history'])) {
@@ -300,6 +303,20 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 
 		// link
 		$rss['post'][$i]['link'] = "https://vk.com/{$infores['screen_name']}?w=wall-{$infores['id']}_{$item['id']}";
+
+		// id
+		$rss['post'][$i]['id'] = $item['id'];
+
+		// is pinned?
+		if (isset($item['is_pinned']) and $item['is_pinned'] == 1)
+			$pinned_post_id = $item['id'];
+	}
+
+	if ($pinned_post_id) {
+		krsort($rss['post']);
+		$last_post = end($rss['post']);
+		if ($last_post['id'] == $pinned_post_id)
+			array_pop($rss['post']);
 	}
 
 	return $rss;
