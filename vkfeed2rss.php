@@ -3,7 +3,7 @@
 const APIKEY = 'APIKEY';
 
 const APIVERSION = '5.70';
-const VERSION = 'vkfeed2rss v1.0';
+const VERSION = 'vkfeed2rss v1.1-dev';
 
 // page type
 const TGROUP = 0;
@@ -231,6 +231,8 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 		case TGROUP: $rss['image']['url'] = $infores['photo_200']; break;
 		case TUSER:  $rss['image']['url'] = $infores['photo_max_orig']; break;
 	}
+	$rss['image']['title'] = 'Page\'s avatar';
+	$rss['image']['link']  = 'https://vk.com';
 
 	// item
 	$pinned_post_id = 0;
@@ -329,6 +331,12 @@ function rss_output(array $rss) {
 				$xw->startElement('image');
 					$xw->startElement('url');
 						$xw->text($rss['image']['url']);
+					$xw->endElement();
+					$xw->startElement('title');
+						$xw->text($rss['image']['title']);
+					$xw->endElement();
+					$xw->startElement('link');
+						$xw->text($rss['image']['link']);
 					$xw->endElement();
 				$xw->endElement();
 				foreach ($rss['post'] as $item) {
