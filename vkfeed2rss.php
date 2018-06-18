@@ -208,6 +208,30 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 		return $ret;
 	}
 
+	/*
+	 * get name of a post's author
+	 * if user, its first name + last name used
+	 * if group, its name used
+	*/ 
+	function get_poster($item, $raw_posts) {
+		$poster = NULL;
+		// all the groups are negative integer
+		if ($item['from_id'] < 0) { // group
+			foreach ($raw_posts['response']['groups'] as $g)
+				if (($g['id'] * -1) == $item['from_id']) {
+					$poster['name'] = "{$g['name']}"; // equals to: (string)$g['name']
+					$poster['screen_name'] = $g['screen_name'];
+				}
+		} else { // user
+			foreach ($raw_posts['response']['profiles'] as $u)
+				if ($u['id'] == $item['from_id']) {
+					$poster['name'] = "{$u['first_name']} {$u['last_name']}";
+					$poster['screen_name'] = $u['screen_name'];
+				}
+		}
+		return $poster;
+	}
+
 	$infores = $raw_info['response'][0];
 
 	// title
@@ -243,56 +267,63 @@ function process_raw(array $raw_info, array $raw_posts, array $pageres) {
 
 	// item
 	$pinned_post_id = 0;
-	foreach ($raw_posts['response']['items'] as $_i => $item) {
-		// id
-		$i = $item['id'];
-		// description
-		// handle a repost (simple post is lower)
-		if (isset($item['copy_history'])) {
-			$desc = item_parse($item['copy_history'][0]);
-			$rss['post'][$i]['type'] = PREPOST;
-		}
-		// a post
-		else {
-			$desc = item_parse($item);
-			$rss['post'][$i]['type'] = PPOST;
-		}
-		$rss['post'][$i]['description'] = $desc;
+	foreach ($raw_posts['response']['items'] as $item) {
+		// id of this item
+		$id = $item['id'];
 		
+		// a post or a post with reposts?
+		if (isset($item['copy_history']))
+			$type = PREPOST;
+		else
+			$type = PPOST;
+
+		// description
+		$desc = '';
+		// main text of a post
+		if (!is_null($item['text']))
+			$desc .= item_parse($item);
+		// main text of reposts
+		if ($type == PREPOST) // is repost?
+		// check all repost texts in a post
+		foreach ($item['copy_history'] as $subitem)
+			if (!is_null($subitem['text'])) {
+				$tmp = get_poster($subitem, $raw_posts);
+				$author = htmlentities($tmp['name'], ENT_QUOTES | ENT_HTML401);
+				$desc .= "<br \><br \><a href='https://vk.com/{$tmp['screen_name']}'>{$author}</a>:<br \>";
+				$desc .= item_parse($subitem);
+			}
+		$desc = preg_replace('/^(<br \x5C>)+/', '', $desc);
+		$desc = preg_replace('/(<br \x5C>)+$/', '', $desc);
+		$rss['post'][$id]['description'] = $desc;
+		unset($desc);
+
 		// title
-		switch ($rss['post'][$i]['type']) {
-			case PPOST:   $title = "Post: "; break;
-			case PREPOST: $title = "Repost: "; break;
+		switch ($type) {
+			case PPOST:   $title = "Post"; break;
+			case PREPOST: $title = "Repost"; break;
 		}
 		/*
 		 * if a post was posted by a group, its name will be added in title,
 		 * if by a[n] user, its name + familyname
 		 */
-		$poster = NULL;
-		// all the groups are negative integer
-		if ($item['from_id'] < 0) { // group
-			foreach ($raw_posts['response']['groups'] as $g)
-				if (($g['id'] * -1) == $item['from_id'])
-					$poster = "{$g['name']}"; // equals to: (string)$g['name']
-		} else { // user
-			foreach ($raw_posts['response']['profiles'] as $u)
-				if ($u['id'] == $item['from_id'])
-					$poster = "{$u['first_name']} {$u['last_name']}";
-		}
-		if ($poster != NULL)
-			$title .= $poster;
+		$poster = get_poster($item, $raw_posts);
+		if (!is_null($poster))
+			$rss['post'][$id]['title'] = "$title: {$poster['name']}";
 		else
 			die("Unexpected error when generated title for an item");
-		$rss['post'][$i]['title'] = $title;
 
 		// pubDate
-		$rss['post'][$i]['pubDate'] = date(DATE_RSS, $item['date']);
+		$rss['post'][$id]['pubDate'] = date(DATE_RSS, $item['date']);
 
 		// link
-		$rss['post'][$i]['link'] = "https://vk.com/{$infores['screen_name']}?w=wall-{$infores['id']}_{$item['id']}";
+		if ($pageres['type'] == TGROUP)
+			$wid = '-'.$infores['id'];
+		else
+			$wid = (string)$infores['id'];
+		$rss['post'][$id]['link'] = "https://vk.com/{$infores['screen_name']}?w=wall{$wid}_{$item['id']}";
 
 		// id
-		$rss['post'][$i]['id'] = $item['id'];
+		$rss['post'][$id]['id'] = $item['id'];
 
 		// is pinned?
 		if (isset($item['is_pinned']) and $item['is_pinned'] == 1)
