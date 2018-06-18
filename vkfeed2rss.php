@@ -2,15 +2,17 @@
 // API key
 //const APIKEY = 'APIKEY';
 
+// VK API version
 const APIVERSION = '5.70';
-const VERSION = 'vkfeed2rss v1.1-dev';
-// if found, use it
+// program with version string
+const VERSION = 'vkfeed2rss v1.1';
+// configuration file path, if found, uses it
 const CONFIGPATH = 'config.json';
 
-// page type
+// page type enum
 const TGROUP = 0;
 const TUSER = 1;
-// post type
+// post type enum
 const PPOST = 0;
 const PREPOST = 1;
 
@@ -344,6 +346,7 @@ function rss_output(array $rss) {
 						$xw->text($rss['image']['link']);
 					$xw->endElement();
 				$xw->endElement();
+				if (isset($rss['post']))
 				foreach ($rss['post'] as $item) {
 					$xw->startElement('item');
 						$xw->startElement('title');
@@ -366,7 +369,53 @@ function rss_output(array $rss) {
 	print $xw->outputMemory();
 }
 
+function html_interface_display() {
+	$script_version = VERSION;
+	$script_path    = basename(__FILE__);
+	echo <<<EOT
+<html>
+<head>
+	<title>$script_version</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<body>
+<form action="$script_path">
+	<p>
+		<b>URL страницы: </b>
+		<input type="text" name="url" size=40>
+	</p>
+	<p>
+		<b>Количество записей: </b>
+		<input type="text" name="count" size=5>
+	</p>
+	<p>
+		<b>Фильтр записей: </b><br>
+		<input type="radio" name="filter" value="all">Все записи<br>
+		<input type="radio" name="filter" value="owner">Лишь от имени страницы<br>
+		<input type="radio" name="filter" value="others">Лишь от имён пользователей<br>
+	</p>
+	<p>
+		<input type="submit" value="Отправить">
+		<input type="reset" value="Очистить">
+	</p>
+	<p><a href="https://gitlab.com/SlackCoyote/vkfeed2rss">vkfeed2rss - свободная программа</a></p>
+</form>
+</body>
+</head>	
+</html>
+EOT;
+}
+
 function main() {
+	// path
+	if (isset($_GET['path']))
+		$config['path'] = $_GET['path'];
+	elseif (isset($_GET['url']))
+		$config['path'] = vk_path_from_url($_GET['url']);
+	else {
+		html_interface_display();
+		exit();
+	}
+	
 	if (file_exists(CONFIGPATH)) {
 		$cfgfile = json_decode(file_get_contents(CONFIGPATH), true);
 		if ($cfgfile == NULL)
@@ -382,14 +431,6 @@ function main() {
 		$config['apikey'] = APIKEY;
 	else
 		die("No api key");
-
-	// path
-	if (isset($_GET['path']))
-		$config['path'] = $_GET['path'];
-	elseif (isset($_GET['url']))
-		$config['path'] = vk_path_from_url($_GET['url']);
-	else
-		die("url or path has to be specified");
 
 	// count
 	if (isset($_GET['count']))
