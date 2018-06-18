@@ -1,9 +1,11 @@
 <?php
 // API key
-const APIKEY = 'APIKEY';
+//const APIKEY = 'APIKEY';
 
 const APIVERSION = '5.70';
 const VERSION = 'vkfeed2rss v1.1-dev';
+// if found, use it
+const CONFIGPATH = 'config.json';
 
 // page type
 const TGROUP = 0;
@@ -26,10 +28,13 @@ function vk_path_from_url(string $url) {
 			case 1: $tmp = parse_url("https://{$url}"); break;
 			case 2: $tmp = parse_url("https://vk.com/{$url}"); break;
 		}
-
-		if (($tmp['scheme'] == 'http' or $tmp['scheme'] == 'https') // check
-		and $tmp['path'] != '/' and $tmp['path'])
-			return substr($tmp['path'], 1);
+		
+		// check
+		if (isset($tmp['scheme']) and isset($tmp['path'])) {
+			if (($tmp['scheme'] == 'http' or $tmp['scheme'] == 'https')
+			and (!is_null($tmp['path']) and $tmp['path'] != '/'))
+				return substr($tmp['path'], 1);
+		}
 	}
 
 	// if the function can't parse the url, die
@@ -362,9 +367,17 @@ function rss_output(array $rss) {
 }
 
 function main() {
+	if (file_exists(CONFIGPATH)) {
+		$cfgfile = json_decode(file_get_contents(CONFIGPATH), true);
+		if ($cfgfile == NULL)
+			die("Cannot parse configuration file: ".CONFIGPATH);
+	}
+	
 	// some functions needs vk api key
 	if (isset($_GET['apikey']))
 		$config['apikey'] = $_GET['apikey'];
+	elseif (isset($cfgfile['apikey']))
+		$config['apikey'] = $cfgfile['apikey'];
 	elseif (constant('APIKEY'))
 		$config['apikey'] = APIKEY;
 	else
@@ -379,21 +392,31 @@ function main() {
 		die("url or path has to be specified");
 
 	// count
-	if (isset($_GET['count'])) {
-		if ((int)$_GET['count'] < 0 or (int)$_GET['count'] > 100)
+	if (isset($_GET['count']))
+		$post_count = $_GET['count'];
+	elseif (isset($cfgfile['count']))
+		$post_count = $cfgfile['count'];
+	if (isset($post_count)) {
+		if ((int)$post_count < 0 or (int)$post_count > 100)
 			die("Count limit is from 0 to 100");
 		else
-			$config['count'] = $_GET['count']; // no need to convert to integer
+			$config['count'] = $post_count;
+		unset($post_count);
 	}
 
 	// filter
-	if (isset($_GET['filter'])) {
-		switch($_GET['filter']) {
+	if (isset($_GET['filter']))
+		$filter_string = $_GET['filter'];
+	elseif (isset($cfgfile['filter']))
+		$filter_string = $cfgfile['filter'];
+	if (isset($filter_string)) {
+		switch($filter_string) {
 			case 'all':
 			case 'owner':
-			case 'others': $config['filter'] = $_GET['filter']; break;
+			case 'others': $config['filter'] = $filter_string; break;
 			default: die("Only all, owner and others filters are supported");
 		}
+		unset($filter_string);
 	}
 
 	// configuration available fromeverywhere the program
