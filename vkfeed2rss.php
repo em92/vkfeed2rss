@@ -3,11 +3,11 @@
 //const APIKEY = 'APIKEY';
 
 // VK API version
-const APIVERSION = '5.70';
+const APIVERSION = '5.131';
 // program with version string
 const VERSION = 'vkfeed2rss v1.1';
 // configuration file path, if found, uses it
-const CONFIGPATH = 'config.json';
+const CONFIGPATH = __DIR__ . '/config.json';
 
 // page type enum
 const TGROUP = 0;
